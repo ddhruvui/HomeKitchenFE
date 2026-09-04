@@ -17,8 +17,15 @@ export interface Ingredient {
 export interface RecipeLine { ingredientId: string; qty?: number; unit?: Unit; note?: string; }
 export interface Recipe { id: string; title: string; ingredients: RecipeLine[]; steps: string[]; tags: string[]; }
 
+export interface EkadashiDay { id: string; date: string; name?: string; }
+
 export interface Ref { id: string; title: string | null; }
-export interface WeekDay { date: string; breakfast: Ref[]; lunch: Ref[]; dinner: Ref[]; }
+// `lunchFrom` / `dinnerCookedOn` are the EVENINGS behind the two carried meals — on a fast day the
+// dish is cooked the night before and eaten at both lunch and dinner (§4), so neither is date − 1.
+export interface WeekDay {
+  date: string; isEkadashi: boolean; breakfast: Ref[]; lunch: Ref[]; lunchFrom: string | null;
+  dinner: Ref[]; dinnerCookedOn: string; cookAhead: { date: string; dishes: Ref[] } | null;
+}
 export interface Week { startDate: string; endDate: string; days: WeekDay[]; }
 
 export interface NeededRow { ingredient: Ingredient; stock: { qty: number; unit: Unit } | null; needQty: number | null; needUnit: Unit | null; problem: string | null; }
@@ -35,7 +42,12 @@ export interface ShoppingList { id: string; startDate: string; endDate: string; 
 
 export interface ScaledLine { ingredientId: string; name: string; qty?: number; unit?: Unit; note?: string; }
 export interface ScaledRecipe { recipeId: string; title: string; factor: number; lines: ScaledLine[]; steps: string[]; }
-export interface Today { date: string; people: number; breakfast: ScaledRecipe[]; lunch: string[]; dinner: ScaledRecipe[]; }
+export interface Today {
+  date: string; people: number; isEkadashi: boolean;
+  breakfast: ScaledRecipe[]; lunch: string[]; lunchFrom: string | null;
+  dinner: ScaledRecipe[]; dinnerCookedOn: string;
+  cookAhead: { date: string; recipes: ScaledRecipe[] } | null;
+}
 
 export interface NeedsBridge { ingredient: Ingredient; needs: Array<'ozPerCup' | 'ozPerCount'>; units: Unit[]; }
 export interface BridgeEstimate { id: string; name?: string; ozPerCup?: number; ozPerCount?: number; rationale: string; }

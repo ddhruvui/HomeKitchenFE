@@ -61,20 +61,21 @@ export function PlanPage() {
         </div>
 
         <div className="banner soft" style={{ alignSelf: 'flex-start' }}><span style={{ color: 'var(--accent-ink)', display: 'flex' }}><Carry size={15} /></span>
-          Dinner is cooked twice over — that evening and the next day’s lunch. Lunch fills itself in. Quantities are scaled for <b style={{ margin: '0 4px' }}>{people} people</b>.</div>
+          Dinner is cooked twice over — that evening and the next day’s lunch; a fast day’s one dish is cooked the evening before. Lunch fills itself in. Quantities are scaled for <b style={{ margin: '0 4px' }}>{people} people</b>.</div>
         {useUp.length > 0 && <div className="banner soft" style={{ alignSelf: 'flex-start', gap: 14 }}><span className="eyebrow accent" style={{ fontSize: 10.5 }}>Use it up</span>{useUp.map((i) => <span key={i.id}><b style={{ fontWeight: 600 }}>{i.name}</b> <span style={{ color: expiryStatus(i.expiresOn!).status === 'expired' ? 'var(--red)' : 'var(--amber)' }}>{expiryLabel(i.expiresOn!)}</span>{i.in.length > 0 && <span className="faint"> · used in {i.in.join(', ')}</span>}</span>)}</div>}
         {error && <div className="banner red">{error}</div>}
 
         {w && (
           <div className="week">
             <div />
-            {w.days.map((d) => <div key={d.date} className={'dayhead' + (d.date === todayStr() ? ' today' : '')}><span className="d">{dow(d.date).toUpperCase()}</span><span className="n">{dayNum(d.date)}</span></div>)}
+            {w.days.map((d) => <div key={d.date} className={'dayhead' + (d.date === todayStr() ? ' today' : '')}>{d.isEkadashi && <span className="fasttag">Ekadashi</span>}<span className="d">{dow(d.date).toUpperCase()}</span><span className="n">{dayNum(d.date)}</span></div>)}
             <div className="lbl"><span className="eyebrow">Breakfast</span></div>
             {w.days.map((d) => <SlotCell key={d.date} day={d} slot="breakfast" onOpen={() => { setFilter(''); setPicker({ day: d, slot: 'breakfast' }); }} onRemove={(id) => setSlot(d, 'breakfast', d.breakfast.map((r) => r.id).filter((x) => x !== id))} />)}
             <div className="lbl"><span className="eyebrow" style={{ color: '#c0b7ab' }}>Lunch</span><small className="serif" style={{ fontStyle: 'italic', color: '#c0b7ab', fontSize: 10.5 }}>carried over</small></div>
-            {w.days.map((d, i) => <div key={d.date} className="slot lunch"><span className="t">{d.lunch.length ? d.lunch.map((r) => r.title).join(' + ') : 'Nothing carried over'}</span>{d.lunch.length > 0 && <small>from {i === 0 ? 'last ' + dow(addDays(d.date, -1)) : dow(addDays(d.date, -1))} dinner</small>}</div>)}
+            {/* On an ordinary day `lunchFrom` names the dinner that carried — it skips fast days, so not always yesterday's. A fast eats its own pot, made the night before (§4). */}
+            {w.days.map((d) => <div key={d.date} className={'slot lunch' + (d.isEkadashi ? ' fast' : '')}><span className="t">{d.lunch.length ? d.lunch.map((r) => r.title).join(' + ') : 'Nothing carried over'}</span>{d.lunch.length > 0 && d.lunchFrom && <small>{d.isEkadashi ? 'cooked last night' : `from ${d.lunchFrom < w.startDate ? 'last ' : ''}${dow(d.lunchFrom)} dinner`}</small>}</div>)}
             <div className="lbl"><span className="eyebrow">Dinner</span><span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--accent-ink)' }}>×2</span></div>
-            {w.days.map((d) => <SlotCell key={d.date} day={d} slot="dinner" onOpen={() => { setFilter(''); setPicker({ day: d, slot: 'dinner' }); }} onRemove={(id) => setSlot(d, 'dinner', d.dinner.map((r) => r.id).filter((x) => x !== id))} />)}
+            {w.days.map((d) => <SlotCell key={d.date} day={d} slot="dinner" note={dinnerNote(d)} onOpen={() => { setFilter(''); setPicker({ day: d, slot: 'dinner' }); }} onRemove={(id) => setSlot(d, 'dinner', d.dinner.map((r) => r.id).filter((x) => x !== id))} />)}
           </div>
         )}
 
@@ -102,12 +103,26 @@ export function PlanPage() {
   );
 }
 
-function SlotCell({ day, slot, onOpen, onRemove }: { day: WeekDay; slot: Slot; onOpen: () => void; onRemove: (id: string) => void }) {
-  const dishes = day[slot];
-  if (dishes.length === 0) return <div className="slot empty" onClick={onOpen} role="button" aria-label={`add ${slot} for ${day.date}`}><Plus size={16} /></div>;
+/** Both halves of the fast-day rule as they land on one evening: the pot that is already made, and the pot made early. */
+function dinnerNote(d: WeekDay) {
+  // An unfilled fast day has no pot to have cooked, so it says nothing rather than claiming one.
+  const made = d.isEkadashi && d.dinner.length > 0;
+  if (!made && !d.cookAhead) return null;
   return (
-    <div className="slot" onClick={onOpen}>
-      {dishes.map((r) => <div key={r.id} className="dish"><span>{r.title ?? '?'}</span><button aria-label={`remove ${r.title}`} onClick={(e) => { e.stopPropagation(); onRemove(r.id); }}><X size={11} /></button></div>)}
+    <div className="cell-note">
+      {made && <span>cooked last night · lunch and dinner</span>}
+      {d.cookAhead && <span>+ also cook tonight: <b style={{ fontWeight: 600 }}>{d.cookAhead.dishes.map((r) => r.title ?? '?').join(' + ')}</b> for {dow(d.cookAhead.date)}</span>}
+    </div>
+  );
+}
+
+function SlotCell({ day, slot, note, onOpen, onRemove }: { day: WeekDay; slot: Slot; note?: React.ReactNode; onOpen: () => void; onRemove: (id: string) => void }) {
+  const dishes = day[slot];
+  const cls = 'slot' + (dishes.length === 0 ? ' empty' : '') + (day.isEkadashi ? ' fast' : '');
+  return (
+    <div className={cls} onClick={onOpen} role={dishes.length === 0 ? 'button' : undefined} aria-label={dishes.length === 0 ? `add ${slot} for ${day.date}` : undefined}>
+      {dishes.length === 0 ? <Plus size={16} /> : dishes.map((r) => <div key={r.id} className="dish"><span>{r.title ?? '?'}</span><button aria-label={`remove ${r.title}`} onClick={(e) => { e.stopPropagation(); onRemove(r.id); }}><X size={11} /></button></div>)}
+      {note}
     </div>
   );
 }

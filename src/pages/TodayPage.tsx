@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { Left, Right } from '../components/Icons';
-import { addDays, longDate, relativeDay, todayStr } from '../lib/dates';
+import { addDays, dowLong, longDate, relativeDay, todayStr } from '../lib/dates';
 import { formatQty, UNIT_LABEL } from '../lib/format';
 import { useDateParam, useToday } from '../lib/hooks';
-import type { ScaledRecipe } from '../lib/types';
+import type { ScaledRecipe, Today } from '../lib/types';
+
+/** What tonight's pot is really for: already made on a fast, and on the eve of one it feeds the day after, not tomorrow (§4). */
+function dinnerFactor(t: Today): string {
+  const amounts = `amounts for ${t.people} people`;
+  if (t.isEkadashi) return t.dinner.length ? `${amounts} · cooked last night — the same dish at lunch and dinner` : amounts;
+  if (t.cookAhead) return `${amounts} · ×2 — tonight and the lunch after the fast`;
+  return `${amounts} · ×2 — tonight and tomorrow’s lunch`;
+}
 
 export function TodayPage() {
   const [date, setDate] = useDateParam();
@@ -35,21 +43,29 @@ export function TodayPage() {
   return (
     <div className="page">
       <div className="page-head">
-        <div className="col" style={{ gap: 4 }}><span className={'eyebrow' + (isToday ? ' accent' : '')}>{relativeDay(date)}{isToday ? ' · from this week’s plan' : ''}</span><h1>{longDate(date)}</h1></div>
+        <div className="col" style={{ gap: 4 }}>
+          <div className="row" style={{ gap: 10 }}><span className={'eyebrow' + (isToday ? ' accent' : '')}>{relativeDay(date)}{isToday ? ' · from this week’s plan' : ''}</span>{t?.isEkadashi && <span className="fasttag">Ekadashi</span>}</div>
+          <h1>{longDate(date)}</h1>
+        </div>
         <div className="row" style={{ gap: 6 }}>
           <button className="btn icon" aria-label="previous day" onClick={() => setDate(addDays(date, -1))}><Left size={15} /></button>
           <button className="btn" disabled={isToday} onClick={() => setDate(todayStr())}>Today</button>
           <button className="btn icon" aria-label="next day" onClick={() => setDate(addDays(date, 1))}><Right size={15} /></button>
         </div>
       </div>
-      <div className="banner soft" style={{ alignSelf: 'flex-start' }}><span className="eyebrow" style={{ fontSize: 10.5 }}>Lunch</span>
-        <span>{t && t.lunch.length ? `${t.lunch.join(' + ')}, carried over from last night — nothing to cook` : 'Nothing carried over'}</span></div>
-      {t && (
+      {t && (<>
+        {/* A fast eats its own pot, made last night; every other day eats the last dinner that carried — which skips fast days, so not always last night (§4). */}
+        <div className="banner soft" style={{ alignSelf: 'flex-start' }}><span className="eyebrow" style={{ fontSize: 10.5 }}>Lunch</span>
+          <span>{t.lunch.length && t.lunchFrom
+            ? t.isEkadashi ? `${t.lunch.join(' + ')}, the fast’s own dish, cooked last night — nothing to cook`
+              : `${t.lunch.join(' + ')}, carried over from ${t.lunchFrom === addDays(date, -1) ? 'last night' : `${dowLong(t.lunchFrom)} night`} — nothing to cook`
+            : 'Nothing carried over'}</span></div>
         <div className="cook-grid">
           <Card slot="b" label="Breakfast" factor={`amounts for ${t.people} people · ×1`} recipes={t.breakfast} />
-          <Card slot="d" label="Dinner" factor={`amounts for ${t.people} people · ×2 — tonight and tomorrow’s lunch`} recipes={t.dinner} />
+          <Card slot="d" label="Dinner" factor={dinnerFactor(t)} recipes={t.dinner} />
+          {t.cookAhead && <Card slot="a" label="Also cook tonight" factor={'for tomorrow’s Ekadashi · ×2 — its lunch and its dinner'} recipes={t.cookAhead.recipes} />}
         </div>
-      )}
+      </>)}
     </div>
   );
 }

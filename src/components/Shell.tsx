@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Stepper } from './Stepper';
 import { useSettings, useUpdateSettings } from '../lib/hooks';
 
-const LINKS = [['/plan', 'Plan'], ['/today', 'Today'], ['/recipes', 'Recipes'], ['/ingredients', 'Ingredients'], ['/list', 'Lists']] as const;
+const LINKS = [['/plan', 'Plan'], ['/today', 'Today'], ['/ekadashi', 'Ekadashi'], ['/recipes', 'Recipes'], ['/ingredients', 'Ingredients'], ['/list', 'Lists']] as const;
 export function Shell() {
   const settings = useSettings(); const update = useUpdateSettings();
   return (

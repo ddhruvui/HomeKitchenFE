@@ -1,4 +1,4 @@
-import type { BridgeEstimate, Ingredient, Needed, NeedsBridge, Recipe, RecipeDraft, Settings, ShoppingList, Store, Today, Week, Unit } from './types';
+import type { BridgeEstimate, EkadashiDay, Ingredient, Needed, NeedsBridge, Recipe, RecipeDraft, Settings, ShoppingList, Store, Today, Week, Unit } from './types';
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
@@ -18,6 +18,7 @@ async function http<T>(path: string, init: RequestInit & { timeoutMs?: number } 
   return body as T;
 }
 const j = (body: unknown) => JSON.stringify(body);
+const qs = (params: Record<string, string | undefined>) => { const q = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => !!e[1])).toString(); return q ? `?${q}` : ''; };
 
 export type IngredientInput = Omit<Ingredient, 'id' | 'isLow' | 'expiresOn'> & { expiresOn?: string | null };
 export type RecipeInput = Omit<Recipe, 'id'>;
@@ -67,6 +68,12 @@ export const api = {
     pantry: (listId: string, ingredientId: string, isLow: boolean) => http<ShoppingList>(`/api/lists/${listId}/pantry/${ingredientId}`, { method: 'PATCH', body: j({ isLow }) }),
     addManual: (listId: string, body: { name: string; storeId: string; group?: string }) => http<ShoppingList>(`/api/lists/${listId}/items`, { method: 'POST', body: j(body) }),
     removeManual: (listId: string, ingredientId: string) => http<ShoppingList>(`/api/lists/${listId}/items/${ingredientId}`, { method: 'DELETE' }),
+  },
+  ekadashi: {
+    list: (from?: string, to?: string) => http<EkadashiDay[]>(`/api/ekadashi${qs({ from, to })}`),
+    // An omitted name leaves an existing one alone; '' clears it — so send the key only when asked to.
+    mark: (date: string, name?: string) => http<EkadashiDay>(`/api/ekadashi/${date}`, { method: 'PUT', body: j(name === undefined ? {} : { name }) }),
+    unmark: (date: string) => http<void>(`/api/ekadashi/${date}`, { method: 'DELETE' }),
   },
   today: (date: string) => http<Today>(`/api/today?date=${date}`),
   ai: {
