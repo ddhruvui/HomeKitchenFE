@@ -26,6 +26,11 @@ const dish = (recipeId: string, title: string) => ({ recipeId, title, factor: 2,
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>);
 
 describe('the fast day across the three pages', () => {
+  // The fixture is one fixed week in September 2026, and the page sorts fasts into upcoming and passed by the real clock,
+  // so the clock is pinned to the Monday of that week. Only Date is faked — userEvent and react-query need real timers.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(2026, 8, 7, 12)); });
+  afterEach(() => vi.useRealTimers());
+
   it('ekadashi page lists marked dates with their dish', async () => {
     vi.spyOn(api.ekadashi, 'list').mockResolvedValue([{ id: 'e0', date: '2020-01-02', name: 'Old one' }, { id: 'e1', date: '2026-09-08', name: 'Parivartini' }]);
     vi.spyOn(api.plan, 'week').mockResolvedValue(week);
