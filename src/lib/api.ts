@@ -77,8 +77,9 @@ export const api = {
   },
   today: (date: string) => http<Today>(`/api/today?date=${date}`),
   ai: {
-    bridges: (ingredientIds?: string[]) => http<{ estimates: BridgeEstimate[]; model: string }>('/api/ai/bridges', { method: 'POST', body: j(ingredientIds ? { ingredientIds } : {}), timeoutMs: 90_000 }),
-    recipe: (title: string) => http<RecipeDraft>('/api/ai/recipe', { method: 'POST', body: j({ title }), timeoutMs: 90_000 }),
+    bridges: (ingredientIds?: string[]) => http<{ estimates: BridgeEstimate[]; model: string }>('/api/ai/bridges', { method: 'POST', body: j(ingredientIds ? { ingredientIds } : {}), timeoutMs: 45_000 }),
+    // Reading a page or watching a video takes far longer than answering from a dish name, so those wait longer before giving up.
+    recipe: (input: { title?: string; url?: string }) => http<RecipeDraft>('/api/ai/recipe', { method: 'POST', body: j(input), timeoutMs: input.url ? 75_000 : 45_000 }),
   },
 };
 

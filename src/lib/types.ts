@@ -53,4 +53,6 @@ export interface NeedsBridge { ingredient: Ingredient; needs: Array<'ozPerCup' |
 export interface BridgeEstimate { id: string; name?: string; ozPerCup?: number; ozPerCount?: number; rationale: string; }
 
 export interface DraftLine { name: string; qty?: number; unit?: Unit; rawUnit?: string; note?: string; kind?: IngredientKind; form?: Form; match: { ingredientId: string; name: string; kind: IngredientKind; confidence: 'exact' | 'partial' } | null; }
-export interface RecipeDraft { title: string; servings: number; lines: DraftLine[]; steps: string[]; model: string; }
+/** Where a draft came from: a dish name, a page we or the model read, or a YouTube video. `servings` is the source's own yield. */
+export interface DraftSource { kind: 'dish' | 'web' | 'video'; label?: string; url?: string; servings?: number; }
+export interface RecipeDraft { title: string; servings: number; lines: DraftLine[]; steps: string[]; source?: DraftSource; model: string; }

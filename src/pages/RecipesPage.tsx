@@ -6,8 +6,18 @@ import { ingredientInputFor, linesFromDraft, undecided, type Decision, type Line
 import { api, errorMessage, type RecipeInput } from '../lib/api';
 import { UNIT_LABEL, unitsFor } from '../lib/format';
 import { keys, useIngredients, useRecipes, useStores } from '../lib/hooks';
-import type { Ingredient, Recipe, RecipeDraft, Unit } from '../lib/types';
+import type { DraftSource, Ingredient, Recipe, RecipeDraft, Unit } from '../lib/types';
 const blank = (): RecipeInput & { lines: LineDraft[] } => ({ title: '', ingredients: [], steps: [''], tags: [], lines: [] });
+
+/** Only YouTube is watched rather than read, and only watching is expensive enough to warn about. */
+const isVideo = (url: string) => /^https?:\/\/([\w-]+\.)*(youtube\.com|youtu\.be)\//i.test(url);
+
+/** The banner headline. A source's own yield is the number most worth a second look before the draft is used. */
+function sourceLabel(s: DraftSource | undefined): string {
+  if (!s || s.kind === 'dish') return 'Drafted by Gemini for two people';
+  const where = s.kind === 'video' ? `the video at ${s.label}` : s.label;
+  return `From ${where}${s.servings && s.servings !== 2 ? ` · serves ${s.servings}, rescaled for two` : ' · rescaled for two'}`;
+}
 
 export function RecipesPage() {
   const recipes = useRecipes(); const ings = useIngredients(); const stores = useStores(); const qc = useQueryClient();
@@ -18,10 +28,11 @@ export function RecipesPage() {
   const [busy, setBusy] = useState(false);
   const [newIng, setNewIng] = useState<number | null>(null);
   const [ai, setAi] = useState<{ busy: boolean; draft?: RecipeDraft; decisions: Record<number, Decision>; error?: string } | null>(null);
+  const [link, setLink] = useState('');
   const byId = useMemo(() => Object.fromEntries((ings.data ?? []).map((i) => [i.id, i])), [ings.data]);
 
   useEffect(() => {
-    setAi(null);
+    setAi(null); setLink('');
     if (selected === 'new' || selected === null) { setDraft(blank()); return; }
     const r = recipes.data?.find((x) => x.id === selected);
     if (r) setDraft({ title: r.title, tags: r.tags, steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
@@ -50,10 +61,13 @@ export function RecipesPage() {
   }
   const editing = selected !== null;
 
+  const url = link.trim();
   async function draftWithAi() {
     setAi({ busy: true, decisions: {} });
-    try { const d = await api.ai.recipe(draft.title.trim()); setAi({ busy: false, draft: d, decisions: {} }); }
-    catch (e) { setAi({ busy: false, decisions: {}, error: errorMessage(e) }); }
+    try {
+      const d = await api.ai.recipe(url ? { url, ...(draft.title.trim() ? { title: draft.title.trim() } : {}) } : { title: draft.title.trim() });
+      setAi({ busy: false, draft: d, decisions: {} });
+    } catch (e) { setAi({ busy: false, decisions: {}, error: errorMessage(e) }); }
   }
   async function useDraft() {
     if (!ai?.draft) return;
@@ -91,15 +105,23 @@ export function RecipesPage() {
               </div>
               <div className="row">
                 <span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5, flexGrow: 1 }}>Amounts are for one meal, two people. Dinner doubles them; the household count scales the rest.</span>
-                {selected === 'new' && draft.lines.length === 0 && <button className="btn warn small" disabled={!draft.title.trim() || !!ai?.busy} onClick={draftWithAi}>{ai?.busy && !ai.draft ? 'Asking Gemini…' : 'Draft with AI'}</button>}
               </div>
+              {selected === 'new' && draft.lines.length === 0 && (
+                <div className="row" style={{ gap: 8 }}>
+                  <input className="input" style={{ flexGrow: 1, fontSize: 13 }} value={link} onChange={(e) => setLink(e.target.value)} placeholder="…or paste a recipe link or YouTube URL" aria-label="Recipe link" />
+                  <button className="btn warn small" style={{ whiteSpace: 'nowrap' }} disabled={(!draft.title.trim() && !url) || !!ai?.busy} onClick={draftWithAi}>
+                    {ai?.busy && !ai.draft ? (url ? 'Reading the link…' : 'Asking Gemini…') : url ? 'Draft from link' : 'Draft with AI'}
+                  </button>
+                </div>
+              )}
+              {selected === 'new' && draft.lines.length === 0 && isVideo(url) && !ai?.busy && <span className="faint" style={{ fontSize: 12 }}>A video costs far more than a page and is the least accurate source — check the amounts before you use the draft.</span>}
             </div></div>
 
             {ai?.error && !ai.draft && <div className="banner red">{ai.error}</div>}
             {ai?.draft && (() => { const d = ai.draft; const waiting = undecided(d.lines, ai.decisions); return (
               <div className="card"><div className="card-body" style={{ background: 'var(--amber-soft)', gap: 12 }}>
                 <div className="row" style={{ gap: 12 }}>
-                  <div className="col" style={{ gap: 2, flexGrow: 1 }}><b style={{ fontSize: 14 }}>Drafted by Gemini for two people</b><span style={{ fontSize: 13, color: '#6b5327' }}>{d.lines.filter((l) => l.match).length} of {d.lines.length} ingredients are already in your catalog. {waiting.length > 0 ? `Pick a store for the ${waiting.length} new one${waiting.length > 1 ? 's' : ''}, or skip them.` : 'Check the amounts, then use the draft.'}</span></div>
+                  <div className="col" style={{ gap: 2, flexGrow: 1 }}><b style={{ fontSize: 14 }}>{sourceLabel(d.source)}</b><span style={{ fontSize: 13, color: '#6b5327' }}>{d.lines.filter((l) => l.match).length} of {d.lines.length} ingredients are already in your catalog. {waiting.length > 0 ? `Pick a store for the ${waiting.length} new one${waiting.length > 1 ? 's' : ''}, or skip them.` : 'Check the amounts, then use the draft.'}</span></div>
                   <button className="btn" onClick={() => setAi(null)}>Discard</button>
                   <button className="btn primary" disabled={ai.busy || waiting.length > 0} onClick={useDraft}>{ai.busy ? 'Creating…' : 'Use this draft'}</button>
                 </div>
