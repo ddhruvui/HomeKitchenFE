@@ -52,3 +52,6 @@ export interface Today {
 export interface NeedsBridge { ingredient: Ingredient; needs: Array<'ozPerCup' | 'ozPerCount'>; units: Unit[]; }
 export interface BridgeEstimate { id: string; name?: string; ozPerCup?: number; ozPerCount?: number; rationale: string; }
 
+/** One side of the conversation on a new recipe. It lives in the page only — nothing about it is saved with the recipe. */
+export interface ChatTurn { role: 'user' | 'model'; text: string }
+

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IngredientDialog } from '../components/IngredientDialog';
 import { IngredientTable } from '../components/IngredientTable';
+import { RecipeChat } from '../components/RecipeChat';
 import { Check, Down, Plus, Up, X } from '../components/Icons';
 import { api, errorMessage, type RecipeInput } from '../lib/api';
 import { UNIT_LABEL, unitsFor } from '../lib/format';
@@ -76,6 +77,8 @@ export function RecipesPage() {
                 <span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5, flexGrow: 1 }}>Amounts are for one meal, two people. Dinner doubles them; the household count scales the rest.</span>
               </div>
             </div></div>
+
+            {selected === 'new' && <RecipeChat title={draft.title} />}
 
             <div className="card">
               <div className="lines head"><span>Qty</span><span>Unit</span><span>Ingredient</span><span>Note</span><span /></div>

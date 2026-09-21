@@ -1,4 +1,4 @@
-import type { BridgeEstimate, EkadashiDay, Ingredient, Needed, NeedsBridge, Recipe, Settings, ShoppingList, Store, Today, Week, Unit } from './types';
+import type { BridgeEstimate, ChatTurn, EkadashiDay, Ingredient, Needed, NeedsBridge, Recipe, Settings, ShoppingList, Store, Today, Week, Unit } from './types';
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
@@ -78,6 +78,8 @@ export const api = {
   today: (date: string) => http<Today>(`/api/today?date=${date}`),
   ai: {
     bridges: (ingredientIds?: string[]) => http<{ estimates: BridgeEstimate[]; model: string }>('/api/ai/bridges', { method: 'POST', body: j(ingredientIds ? { ingredientIds } : {}), timeoutMs: 45_000 }),
+    // The whole conversation goes up each turn; the server keeps none of it.
+    chat: (messages: ChatTurn[]) => http<{ reply: string; model: string }>('/api/ai/chat', { method: 'POST', body: j({ messages }), timeoutMs: 45_000 }),
   },
 };
 
