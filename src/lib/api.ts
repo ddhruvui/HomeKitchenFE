@@ -1,4 +1,4 @@
-import type { BridgeEstimate, EkadashiDay, Ingredient, Needed, NeedsBridge, Recipe, RecipeDraft, Settings, ShoppingList, Store, Today, Week, Unit } from './types';
+import type { BridgeEstimate, EkadashiDay, Ingredient, Needed, NeedsBridge, Recipe, Settings, ShoppingList, Store, Today, Week, Unit } from './types';
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
@@ -78,8 +78,6 @@ export const api = {
   today: (date: string) => http<Today>(`/api/today?date=${date}`),
   ai: {
     bridges: (ingredientIds?: string[]) => http<{ estimates: BridgeEstimate[]; model: string }>('/api/ai/bridges', { method: 'POST', body: j(ingredientIds ? { ingredientIds } : {}), timeoutMs: 45_000 }),
-    // Reading a page or watching a video takes far longer than answering from a dish name, so those wait longer before giving up.
-    recipe: (input: { title?: string; url?: string }) => http<RecipeDraft>('/api/ai/recipe', { method: 'POST', body: j(input), timeoutMs: input.url ? 75_000 : 45_000 }),
   },
 };
 

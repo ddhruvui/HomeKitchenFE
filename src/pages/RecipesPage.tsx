@@ -2,24 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IngredientDialog } from '../components/IngredientDialog';
 import { IngredientTable } from '../components/IngredientTable';
-import { Check, Down, Plus, Up, Warn, X } from '../components/Icons';
-import { ingredientInputFor, linesFromDraft, undecided, type Decision, type LineDraft } from '../lib/draft';
+import { Check, Down, Plus, Up, X } from '../components/Icons';
 import { api, errorMessage, type RecipeInput } from '../lib/api';
 import { UNIT_LABEL, unitsFor } from '../lib/format';
 import { byExpiryThenName } from '../lib/dates';
 import { keys, useIngredients, useRecipes, useStores } from '../lib/hooks';
-import type { DraftSource, Ingredient, Recipe, RecipeDraft, Unit } from '../lib/types';
+import type { Ingredient, Recipe, Unit } from '../lib/types';
+/** A line while it is being edited: quantity is text until it is saved, and the unit may not be chosen yet. */
+type LineDraft = { ingredientId: string; qty: string; unit: Unit | ''; note: string };
 const blank = (): RecipeInput & { lines: LineDraft[] } => ({ title: '', ingredients: [], steps: [''], tags: [], lines: [] });
-
-/** Only YouTube is watched rather than read, and only watching is expensive enough to warn about. */
-const isVideo = (url: string) => /^https?:\/\/([\w-]+\.)*(youtube\.com|youtu\.be)\//i.test(url);
-
-/** The banner headline. A source's own yield is the number most worth a second look before the draft is used. */
-function sourceLabel(s: DraftSource | undefined): string {
-  if (!s || s.kind === 'dish') return 'Drafted by Gemini for two people';
-  const where = s.kind === 'video' ? `the video at ${s.label}` : s.label;
-  return `From ${where}${s.servings && s.servings !== 2 ? ` · serves ${s.servings}, rescaled for two` : ' · rescaled for two'}`;
-}
 
 export function RecipesPage() {
   const recipes = useRecipes(); const ings = useIngredients(); const stores = useStores(); const qc = useQueryClient();
@@ -29,15 +20,12 @@ export function RecipesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [newIng, setNewIng] = useState<number | null>(null);
-  const [ai, setAi] = useState<{ busy: boolean; draft?: RecipeDraft; decisions: Record<number, Decision>; error?: string } | null>(null);
-  const [link, setLink] = useState('');
   const byId = useMemo(() => Object.fromEntries((ings.data ?? []).map((i) => [i.id, i])), [ings.data]);
   const catalog = useMemo(() => (ings.data ?? []).slice().sort(byExpiryThenName), [ings.data]);
   const onRecipe = new Set(draft.lines.map((l) => l.ingredientId));
   const addLine = (id: string) => setDraft((d) => ({ ...d, lines: [...d.lines, { ingredientId: id, qty: '', unit: '', note: '' }] }));
 
   useEffect(() => {
-    setAi(null); setLink('');
     if (selected === 'new' || selected === null) { setDraft(blank()); return; }
     const r = recipes.data?.find((x) => x.id === selected);
     if (r) setDraft({ title: r.title, tags: r.tags, steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
@@ -66,30 +54,6 @@ export function RecipesPage() {
   }
   const editing = selected !== null;
 
-  const url = link.trim();
-  async function draftWithAi() {
-    setAi({ busy: true, decisions: {} });
-    try {
-      const d = await api.ai.recipe(url ? { url, ...(draft.title.trim() ? { title: draft.title.trim() } : {}) } : { title: draft.title.trim() });
-      setAi({ busy: false, draft: d, decisions: {} });
-    } catch (e) { setAi({ busy: false, decisions: {}, error: errorMessage(e) }); }
-  }
-  async function useDraft() {
-    if (!ai?.draft) return;
-    const d = ai.draft; setAi({ ...ai, busy: true, error: undefined });
-    try {
-      const created: Record<number, string> = {};
-      for (const [i, line] of d.lines.entries()) {
-        const dec = ai.decisions[i];
-        if (line.match || dec?.skip || !dec?.storeId) continue;
-        created[i] = (await api.ingredients.create(ingredientInputFor(line, dec.storeId))).id;
-      }
-      await qc.invalidateQueries({ queryKey: keys.ingredients });
-      setDraft((cur) => ({ ...cur, title: cur.title.trim() || d.title, lines: linesFromDraft(d.lines, created, ai.decisions), steps: d.steps.length ? d.steps : [''] }));
-      setAi(null);
-    } catch (e) { setAi({ ...ai, busy: false, error: errorMessage(e) }); }
-  }
-
   return (
     <div className="page">
       <div className="page-head"><div className="col" style={{ gap: 4 }}><span className="eyebrow">Recipes</span><h1>{recipes.data?.length ?? 0} in the book</h1></div>
@@ -111,42 +75,7 @@ export function RecipesPage() {
               <div className="row">
                 <span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5, flexGrow: 1 }}>Amounts are for one meal, two people. Dinner doubles them; the household count scales the rest.</span>
               </div>
-              {selected === 'new' && draft.lines.length === 0 && (
-                <div className="row" style={{ gap: 8 }}>
-                  <input className="input" style={{ flexGrow: 1, fontSize: 13 }} value={link} onChange={(e) => setLink(e.target.value)} placeholder="…or paste a recipe link or YouTube URL" aria-label="Recipe link" />
-                  <button className="btn warn small" style={{ whiteSpace: 'nowrap' }} disabled={(!draft.title.trim() && !url) || !!ai?.busy} onClick={draftWithAi}>
-                    {ai?.busy && !ai.draft ? (url ? 'Reading the link…' : 'Asking Gemini…') : url ? 'Draft from link' : 'Draft with AI'}
-                  </button>
-                </div>
-              )}
-              {selected === 'new' && draft.lines.length === 0 && isVideo(url) && !ai?.busy && <span className="faint" style={{ fontSize: 12 }}>A video costs far more than a page and is the least accurate source — check the amounts before you use the draft.</span>}
             </div></div>
-
-            {ai?.error && !ai.draft && <div className="banner red">{ai.error}</div>}
-            {ai?.draft && (() => { const d = ai.draft; const waiting = undecided(d.lines, ai.decisions); return (
-              <div className="card"><div className="card-body" style={{ background: 'var(--amber-soft)', gap: 12 }}>
-                <div className="row" style={{ gap: 12 }}>
-                  <div className="col" style={{ gap: 2, flexGrow: 1 }}><b style={{ fontSize: 14 }}>{sourceLabel(d.source)}</b><span style={{ fontSize: 13, color: '#6b5327' }}>{d.lines.filter((l) => l.match).length} of {d.lines.length} ingredients are already in your catalog. {waiting.length > 0 ? `Pick a store for the ${waiting.length} new one${waiting.length > 1 ? 's' : ''}, or skip them.` : 'Check the amounts, then use the draft.'}</span></div>
-                  <button className="btn" onClick={() => setAi(null)}>Discard</button>
-                  <button className="btn primary" disabled={ai.busy || waiting.length > 0} onClick={useDraft}>{ai.busy ? 'Creating…' : 'Use this draft'}</button>
-                </div>
-                {ai.error && <div className="err">{ai.error}</div>}
-                <div className="card" style={{ background: 'var(--surface)' }}>
-                  {d.lines.map((l, i) => { const dec = ai.decisions[i] ?? {}; const setDec = (p: Decision) => setAi({ ...ai, decisions: { ...ai.decisions, [i]: { ...dec, ...p } } }); return (
-                    <div key={i} className="row" style={{ padding: '8px 16px', borderBottom: '1px solid var(--rule-soft)', gap: 12, opacity: dec.skip ? 0.45 : 1 }}>
-                      <span className="mono" style={{ width: 88, fontSize: 13.5 }}>{l.qty !== undefined ? `${l.qty} ${l.unit ? UNIT_LABEL[l.unit] : l.rawUnit ?? ''}` : ''}</span>
-                      <span className="serif" style={{ fontSize: 16, flexGrow: 1 }}>{l.name}{l.note && <span className="faint" style={{ fontFamily: 'var(--sans)', fontSize: 12, marginLeft: 8 }}>{l.note}</span>}</span>
-                      {l.match ? <span className="row" style={{ gap: 6, fontSize: 12.5, color: 'var(--green-ink)' }}><Check size={13} />{l.match.name !== l.name ? `matched ${l.match.name}` : 'in catalog'}{l.match.confidence === 'partial' && <span className="faint">(closest)</span>}</span>
-                        : <span className="row" style={{ gap: 8 }}>
-                            <span className={'chip ' + (l.kind ?? 'pantry')}>{l.kind ?? 'pantry'}</span>
-                            {!dec.skip && <select className="select" style={{ padding: '5px 8px', width: 150 }} value={dec.storeId ?? ''} onChange={(e) => setDec({ storeId: e.target.value || undefined })}><option value="">Which store?</option>{(stores.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>}
-                            <button className="btn small" onClick={() => setDec({ skip: !dec.skip })}>{dec.skip ? 'Keep' : 'Skip'}</button>
-                          </span>}
-                      {l.rawUnit && !dec.skip && <span className="row err" style={{ gap: 4, fontSize: 12 }}><Warn size={12} />unit "{l.rawUnit}" — fix after</span>}
-                    </div>); })}
-                  <div style={{ padding: '10px 16px' }}><span className="faint" style={{ fontSize: 12.5 }}>{d.steps.length} steps · nothing is saved until you press Save recipe.</span></div>
-                </div>
-              </div></div>); })()}
 
             <div className="card">
               <div className="lines head"><span>Qty</span><span>Unit</span><span>Ingredient</span><span>Note</span><span /></div>
