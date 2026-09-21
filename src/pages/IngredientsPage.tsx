@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IngredientDialog } from '../components/IngredientDialog';
+import { IngredientTable, KIND_LABEL } from '../components/IngredientTable';
 import { Modal } from '../components/Modal';
 import { Plus, Warn, X } from '../components/Icons';
 import { api, errorMessage } from '../lib/api';
 import { UNIT_LABEL } from '../lib/format';
-import { byExpiryThenName, expiryLabel, expiryStatus } from '../lib/dates';
+import { byExpiryThenName } from '../lib/dates';
 import { keys, useIngredients, useNeedsBridge, useRecipes, useStores } from '../lib/hooks';
 import type { BridgeEstimate, Ingredient, IngredientKind, Store } from '../lib/types';
-
-const KIND_LABEL: Record<IngredientKind, string> = { fresh: 'Fresh', weekly: 'Weekly', pantry: 'Pantry' };
 
 export function IngredientsPage() {
   const ings = useIngredients(); const stores = useStores(); const needs = useNeedsBridge(); const recipes = useRecipes(); const qc = useQueryClient();
@@ -19,17 +18,9 @@ export function IngredientsPage() {
   const [storesOpen, setStoresOpen] = useState(false);
   const [ai, setAi] = useState<{ busy: boolean; estimates: BridgeEstimate[]; edits: Record<string, { ozPerCup: string; ozPerCount: string }>; error?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const storeById = Object.fromEntries((stores.data ?? []).map((s) => [s.id, s]));
   const rows = (ings.data ?? []).filter((i) => filter === 'all' || i.kind === filter).sort(byExpiryThenName);
-  const expiryColor = (d: string) => ({ expired: 'var(--red)', soon: 'var(--amber)', later: 'var(--muted)' })[expiryStatus(d).status];
   const invalidate = () => { qc.invalidateQueries({ queryKey: keys.ingredients }); qc.invalidateQueries({ queryKey: keys.needsBridge }); qc.invalidateQueries({ queryKey: ['needed'] }); };
 
-  const counted = (i: Ingredient) => {
-    if (i.kind === 'pantry') return <span className="serif faint" style={{ fontStyle: 'italic' }}>no quantity — marked low</span>;
-    if (i.kind === 'weekly') return `${i.weeklyQty} every week`;
-    const parts = [i.buyUnit ? `by ${UNIT_LABEL[i.buyUnit]}` : '']; if (i.ozPerCount && i.countUnit) parts.push(`${i.ozPerCount} oz per ${i.countUnit}`); if (i.ozPerCup) parts.push(`${i.ozPerCup} oz per cup`);
-    return parts.filter(Boolean).join(' · ');
-  };
   async function toggleLow(i: Ingredient) { try { await api.ingredients.setLow(i.id, !i.isLow); invalidate(); } catch (e) { setError(errorMessage(e)); } }
   async function remove(i: Ingredient) { if (!confirm(`Delete ${i.name}?`)) return; try { await api.ingredients.remove(i.id); invalidate(); } catch (e) { setError(errorMessage(e)); } }
   async function estimate() {
@@ -79,22 +70,14 @@ export function IngredientsPage() {
       )}
 
       <div className="card">
-        <table className="table">
-          <thead><tr><th>Name</th><th>Kind</th><th>Store</th><th>How it’s counted</th><th>Expires</th><th className="num">Status</th><th /></tr></thead>
-          <tbody>
-            {rows.length === 0 && <tr><td colSpan={7} className="empty">Nothing here yet.</td></tr>}
-            {rows.map((i) => (
-              <tr key={i.id}>
-                <td className="name">{i.name}</td>
-                <td><span className={'chip ' + i.kind}>{KIND_LABEL[i.kind]}</span></td>
-                <td><span className="row" style={{ gap: 8 }}><span className="dot" style={{ background: storeById[i.storeId]?.color ?? '#ccc' }} />{storeById[i.storeId]?.name ?? '—'}</span></td>
-                <td className="muted" style={{ fontSize: 13 }}>{counted(i)}</td>
-                <td style={{ fontSize: 12.5 }}>{i.expiresOn ? <div className="col" style={{ gap: 2 }}><span style={{ color: expiryColor(i.expiresOn), fontWeight: expiryStatus(i.expiresOn).status === 'later' ? 400 : 600, whiteSpace: 'nowrap' }}><span className="mono">{i.expiresOn}</span> · {expiryLabel(i.expiresOn)}</span><span className="faint" style={{ fontSize: 11.5 }}>{usedIn(i.id).length ? `use it up in ${usedIn(i.id).join(', ')}` : 'no recipe uses this yet'}</span></div> : <span className="faint">—</span>}</td>
-                <td className="num">{i.kind === 'pantry' && <button className={'btn small' + (i.isLow ? ' warn' : '')} onClick={() => toggleLow(i)}>{i.isLow ? 'On the list' : 'Mark low'}</button>}</td>
-                <td className="num"><span className="row" style={{ justifyContent: 'flex-end', gap: 6 }}><button className="btn small" onClick={() => setDialog({ initial: i })}>Edit</button><button aria-label={`delete ${i.name}`} className="faint" onClick={() => remove(i)}><X size={13} /></button></span></td>
-              </tr>))}
-          </tbody>
-        </table>
+        <IngredientTable
+          rows={rows} stores={stores.data ?? []}
+          expiryNote={(i) => <span className="faint" style={{ fontSize: 11.5 }}>{usedIn(i.id).length ? `use it up in ${usedIn(i.id).join(', ')}` : 'no recipe uses this yet'}</span>}
+          extra={[
+            { head: 'Status', cell: (i) => i.kind === 'pantry' && <button className={'btn small' + (i.isLow ? ' warn' : '')} onClick={() => toggleLow(i)}>{i.isLow ? 'On the list' : 'Mark low'}</button> },
+            { head: '', cell: (i) => <span className="row" style={{ justifyContent: 'flex-end', gap: 6 }}><button className="btn small" onClick={() => setDialog({ initial: i })}>Edit</button><button aria-label={`delete ${i.name}`} className="faint" onClick={() => remove(i)}><X size={13} /></button></span> },
+          ]}
+        />
       </div>
 
       {dialog && <IngredientDialog stores={stores.data ?? []} initial={dialog.initial} onClose={() => setDialog(null)} onSaved={() => { invalidate(); setDialog(null); }} />}

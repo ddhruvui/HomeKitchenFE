@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IngredientDialog } from '../components/IngredientDialog';
+import { IngredientTable } from '../components/IngredientTable';
 import { Check, Down, Plus, Up, Warn, X } from '../components/Icons';
 import { ingredientInputFor, linesFromDraft, undecided, type Decision, type LineDraft } from '../lib/draft';
 import { api, errorMessage, type RecipeInput } from '../lib/api';
 import { UNIT_LABEL, unitsFor } from '../lib/format';
+import { byExpiryThenName } from '../lib/dates';
 import { keys, useIngredients, useRecipes, useStores } from '../lib/hooks';
 import type { DraftSource, Ingredient, Recipe, RecipeDraft, Unit } from '../lib/types';
 const blank = (): RecipeInput & { lines: LineDraft[] } => ({ title: '', ingredients: [], steps: [''], tags: [], lines: [] });
@@ -30,6 +32,9 @@ export function RecipesPage() {
   const [ai, setAi] = useState<{ busy: boolean; draft?: RecipeDraft; decisions: Record<number, Decision>; error?: string } | null>(null);
   const [link, setLink] = useState('');
   const byId = useMemo(() => Object.fromEntries((ings.data ?? []).map((i) => [i.id, i])), [ings.data]);
+  const catalog = useMemo(() => (ings.data ?? []).slice().sort(byExpiryThenName), [ings.data]);
+  const onRecipe = new Set(draft.lines.map((l) => l.ingredientId));
+  const addLine = (id: string) => setDraft((d) => ({ ...d, lines: [...d.lines, { ingredientId: id, qty: '', unit: '', note: '' }] }));
 
   useEffect(() => {
     setAi(null); setLink('');
@@ -176,6 +181,18 @@ export function RecipesPage() {
               <div className="spacer" /><button className="btn" onClick={() => setSelected(null)}>Discard</button>
               <button className="btn primary" disabled={busy || !draft.title.trim()} onClick={save}>{busy ? 'Saving…' : 'Save recipe'}</button>
             </div>
+
+            {selected === 'new' && (
+              <div className="card">
+                <div className="card-head"><span className="serif" style={{ fontSize: 19, flexGrow: 1 }}>Everything this house buys</span><span className="mono faint" style={{ fontSize: 12 }}>{catalog.length} ingredient{catalog.length === 1 ? '' : 's'}</span></div>
+                <div className="row" style={{ padding: '10px 20px 0' }}><span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5 }}>Add one with +, then set its amount above. Anything missing from this list needs + New ingredient first.</span></div>
+                <IngredientTable
+                  rows={catalog} stores={stores.data ?? []} empty="No ingredients yet — add one from the picker above."
+                  extra={[{ head: '', cell: (i) => onRecipe.has(i.id)
+                    ? <span className="row" style={{ justifyContent: 'flex-end', gap: 5, fontSize: 12.5, color: 'var(--green-ink)' }}><Check size={13} />added</span>
+                    : <button className="btn small" aria-label={`add ${i.name}`} title={`Add ${i.name} to this recipe`} onClick={() => addLine(i.id)}><Plus size={13} /></button> }]}
+                />
+              </div>)}
           </div>)}
       </div>
       {newIng !== null && <IngredientDialog stores={stores.data ?? []} onClose={() => setNewIng(null)} onSaved={(ing) => { qc.invalidateQueries({ queryKey: keys.ingredients }); setLine(newIng, { ingredientId: ing.id, unit: '' }); setNewIng(null); }} />}
