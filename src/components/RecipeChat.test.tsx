@@ -83,6 +83,28 @@ describe('asking about the dish', () => {
     for (const m of chat.mock.calls[1][0]) expect(Object.keys(m).sort()).toEqual(['role', 'text']);
   });
 
+  it('a chip asks its question, and stops being offered once asked', async () => {
+    const chat = vi.spyOn(api.ai, 'chat').mockResolvedValue({ reply: 'Two potatoes.', model: 'm' });
+    render(<RecipeChat title="Pav Bhaji" />);
+    const chip = screen.getByRole('button', { name: 'What do I need for Pav Bhaji?' });
+    await userEvent.click(chip);
+    expect(chat).toHaveBeenCalledWith([{ role: 'user', text: 'What do I need for Pav Bhaji?' }]);
+    expect(await screen.findByText('Two potatoes.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'What do I need for Pav Bhaji?' })).not.toBeInTheDocument();
+    // the ones not yet asked are still there, and the next in line has moved up
+    expect(screen.getByRole('button', { name: 'Can I make any of it ahead?' })).toBeInTheDocument();
+  });
+
+  it('the chips name the dish, and start over brings them back', async () => {
+    vi.spyOn(api.ai, 'chat').mockResolvedValue({ reply: 'Boil it.', model: 'm' });
+    render(<RecipeChat title="Khichdi" />);
+    expect(screen.getByRole('button', { name: 'How do I make Khichdi?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'How do I make Khichdi?' }));
+    await screen.findByText('Boil it.');
+    await userEvent.click(screen.getByRole('button', { name: 'Start over' }));
+    expect(screen.getByRole('button', { name: 'How do I make Khichdi?' })).toBeInTheDocument();
+  });
+
   it('suggests the recipe title as the first question', () => {
     render(<RecipeChat title="  Palak Paneer  " />);
     expect(ask()).toHaveAttribute('placeholder', 'How do I make Palak Paneer?');

@@ -5,6 +5,15 @@ import type { ChatTurn } from '../lib/types';
 /** What answered is display-only: the backend's fallback chain means it varies per turn, and only role and text go back up. */
 type Turn = ChatTurn & { model?: string };
 
+/** Openers, in the order the recipe gets written: what to buy, then how to cook it, then the two things you ask afterwards.
+ *  Static rather than model-written — the free tier is 20 requests a day, and a chip is not worth one of them. */
+const SUGGESTIONS = (dish: string) => [
+  `What do I need for ${dish}?`,
+  `How do I make ${dish}?`,
+  'How long does it take?',
+  'Can I make any of it ahead?',
+];
+
 /** A conversation about the dish, beside the editor. Nothing it says reaches the recipe except by your typing it in,
  *  and nothing is stored: the turns live in this component and go up whole on every question. */
 export function RecipeChat({ title }: { title: string }) {
@@ -26,8 +35,16 @@ export function RecipeChat({ title }: { title: string }) {
   }
   function send() {
     const q = text.trim();
-    if (!q || busy) return;
-    const next: Turn[] = [...turns, { role: 'user', text: q }];
+    if (q) ask1(q);
+  }
+
+  const dish = title.trim() || 'pav bhaji';
+  const asked = new Set(turns.filter((t) => t.role === 'user').map((t) => t.text));
+  const suggestions = SUGGESTIONS(dish).filter((q) => !asked.has(q)).slice(0, 3);
+
+  function ask1(question: string) {
+    if (busy) return;
+    const next: Turn[] = [...turns, { role: 'user', text: question }];
     setTurns(next); setText(''); ask(next);
   }
 
@@ -58,6 +75,13 @@ export function RecipeChat({ title }: { title: string }) {
               }}>{t.text}</div>
             </div>))}
           {busy && <span className="faint" style={{ fontSize: 12.5 }}>Asking Gemini…</span>}
+        </div>)}
+
+      {suggestions.length > 0 && !busy && (
+        <div className="row" style={{ padding: '12px 20px 0', gap: 8, flexWrap: 'wrap' }}>
+          {suggestions.map((q) => (
+            <button key={q} className="btn small" style={{ borderRadius: 999, fontWeight: 400 }} onClick={() => ask1(q)}>{q}</button>
+          ))}
         </div>)}
 
       {error && (
