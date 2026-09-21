@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from '../lib/api';
 import type { ChatTurn } from '../lib/types';
 
+/** What answered is display-only: the backend's fallback chain means it varies per turn, and only role and text go back up. */
+type Turn = ChatTurn & { model?: string };
+
 /** A conversation about the dish, beside the editor. Nothing it says reaches the recipe except by your typing it in,
  *  and nothing is stored: the turns live in this component and go up whole on every question. */
 export function RecipeChat({ title }: { title: string }) {
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,17 +17,17 @@ export function RecipeChat({ title }: { title: string }) {
   // A new answer is always at the bottom, and it is the thing you want to read.
   useEffect(() => { const el = thread.current; if (el) el.scrollTop = el.scrollHeight; }, [turns, busy]);
 
-  async function ask(conversation: ChatTurn[]) {
+  async function ask(conversation: Turn[]) {
     setBusy(true); setError(null);
     try {
-      const { reply } = await api.ai.chat(conversation);
-      setTurns([...conversation, { role: 'model', text: reply }]);
+      const { reply, model } = await api.ai.chat(conversation.map(({ role, text: t }) => ({ role, text: t })));
+      setTurns([...conversation, { role: 'model', text: reply, model }]);
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   function send() {
     const q = text.trim();
     if (!q || busy) return;
-    const next: ChatTurn[] = [...turns, { role: 'user', text: q }];
+    const next: Turn[] = [...turns, { role: 'user', text: q }];
     setTurns(next); setText(''); ask(next);
   }
 
@@ -44,7 +47,9 @@ export function RecipeChat({ title }: { title: string }) {
         <div ref={thread} className="col" style={{ gap: 12, padding: '14px 20px', maxHeight: 380, overflowY: 'auto' }}>
           {turns.map((t, i) => (
             <div key={i} className="col" style={{ gap: 3, alignItems: t.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <span className="mono faint" style={{ fontSize: 10.5, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{t.role === 'user' ? 'You' : 'Gemini'}</span>
+              <span className="mono faint" style={{ fontSize: 10.5, letterSpacing: '0.07em' }}>
+                {t.role === 'user' ? 'YOU' : t.model ? `GEMINI · ${t.model}` : 'GEMINI'}
+              </span>
               <div style={{
                 maxWidth: '86%', padding: '9px 13px', borderRadius: 10, whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55,
                 background: t.role === 'user' ? 'var(--soft)' : 'var(--paper)',

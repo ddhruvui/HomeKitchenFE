@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { api, ApiError } from '../lib/api';
 import { RecipeChat } from './RecipeChat';
@@ -58,6 +58,29 @@ describe('asking about the dish', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Start over' }));
     expect(screen.queryByText('Boil it.')).not.toBeInTheDocument();
     expect(ask()).toHaveAttribute('placeholder', 'How do I make khichdi?'.replace('khichdi', 'Khichdi'));
+  });
+
+  it('names the model that answered, per turn, since a fallback chain varies it', async () => {
+    vi.spyOn(api.ai, 'chat')
+      .mockResolvedValueOnce({ reply: 'Boil it.', model: 'gemini-3.5-flash' })
+      .mockResolvedValueOnce({ reply: 'Yes.', model: 'gemini-flash-lite-latest' });
+    render(<RecipeChat title="Poha" />);
+    await userEvent.type(ask(), 'How?{Enter}');
+    expect(await screen.findByText('GEMINI · gemini-3.5-flash')).toBeInTheDocument();
+    await userEvent.type(ask(), 'Quick?{Enter}');
+    expect(await screen.findByText('GEMINI · gemini-flash-lite-latest')).toBeInTheDocument();
+    // the earlier turn keeps the model that actually answered it
+    expect(screen.getByText('GEMINI · gemini-3.5-flash')).toBeInTheDocument();
+  });
+
+  it('keeps the model out of what goes back up — the server takes role and text only', async () => {
+    const chat = vi.spyOn(api.ai, 'chat').mockResolvedValue({ reply: 'Boil it.', model: 'gemini-flash-latest' });
+    render(<RecipeChat title="Poha" />);
+    await userEvent.type(ask(), 'How?{Enter}');
+    await screen.findByText('Boil it.');
+    await userEvent.type(ask(), 'Then?{Enter}');
+    await waitFor(() => expect(chat).toHaveBeenCalledTimes(2));
+    for (const m of chat.mock.calls[1][0]) expect(Object.keys(m).sort()).toEqual(['role', 'text']);
   });
 
   it('suggests the recipe title as the first question', () => {
