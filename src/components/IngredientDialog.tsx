@@ -16,7 +16,7 @@ export function IngredientDialog({ stores, initial, onClose, onSaved }: { stores
   const [name, setName] = useState(initial?.name ?? '');
   const [kind, setKind] = useState<IngredientKind>(initial?.kind ?? 'pantry');
   const [storeId, setStoreId] = useState(initial?.storeId ?? stores[0]?.id ?? '');
-  const [form, setForm] = useState<Form>(initial?.form ?? 'Produce');
+  const [form, setForm] = useState<Form>(initial?.form ?? 'Veggies');
   const [weeklyQty, setWeeklyQty] = useState(initial?.weeklyQty?.toString() ?? '1');
   const [buyUnit, setBuyUnit] = useState<Unit>(initial?.buyUnit ?? 'each');
   const [stockUnit, setStockUnit] = useState<Unit | ''>(initial?.stockUnit ?? '');

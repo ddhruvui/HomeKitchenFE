@@ -36,13 +36,14 @@ export function IngredientTable({ rows, stores, extra = [], expiryNote, empty = 
       {needle !== '' && <span className="mono faint" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{shown.length} of {rows.length}</span>}
     </div>
     <table className="table">
-      <thead><tr><th>Name</th><th>Kind</th><th>Store</th><th>How it’s counted</th><th>Expires</th>{extra.map((c, k) => <th key={k} className="num">{c.head}</th>)}</tr></thead>
+      <thead><tr><th>Name</th><th>Kind</th><th>Aisle</th><th>Store</th><th>How it’s counted</th><th>Expires</th>{extra.map((c, k) => <th key={k} className="num">{c.head}</th>)}</tr></thead>
       <tbody>
-        {shown.length === 0 && <tr><td colSpan={5 + extra.length} className="empty">{needle ? `Nothing matches “${search.trim()}”.` : empty}</td></tr>}
+        {shown.length === 0 && <tr><td colSpan={6 + extra.length} className="empty">{needle ? `Nothing matches “${search.trim()}”.` : empty}</td></tr>}
         {shown.map((i) => (
           <tr key={i.id}>
             <td className="name">{i.name}</td>
             <td><span className={'chip ' + i.kind}>{KIND_LABEL[i.kind]}</span></td>
+            <td><span className="chip form">{i.form}</span></td>
             <td><span className="row" style={{ gap: 8 }}><span className="dot" style={{ background: storeById[i.storeId]?.color ?? '#ccc' }} />{storeById[i.storeId]?.name ?? '—'}</span></td>
             <td className="muted" style={{ fontSize: 13 }}>{counted(i)}</td>
             <td style={{ fontSize: 12.5 }}>{i.expiresOn ? <div className="col" style={{ gap: 2 }}><span style={{ color: expiryColor(i.expiresOn), fontWeight: expiryStatus(i.expiresOn).status === 'later' ? 400 : 600, whiteSpace: 'nowrap' }}><span className="mono">{i.expiresOn}</span> · {expiryLabel(i.expiresOn)}</span>{expiryNote?.(i)}</div> : <span className="faint">—</span>}</td>

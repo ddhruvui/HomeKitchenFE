@@ -16,18 +16,18 @@ describe('IngredientDialog', () => {
     expect(screen.getByLabelText(/How many every week/)).toBeInTheDocument();
   });
   it('sends only the fields that belong to the kind', async () => {
-    const create = vi.spyOn(api.ingredients, 'create').mockResolvedValue({ id: 'x', name: 'Rice', kind: 'pantry', storeId: 's2', form: 'Dry Goods' });
+    const create = vi.spyOn(api.ingredients, 'create').mockResolvedValue({ id: 'x', name: 'Rice', kind: 'pantry', storeId: 's2', form: 'Grains' });
     const onSaved = vi.fn();
     render(<IngredientDialog stores={stores} onClose={() => {}} onSaved={onSaved} />);
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Rice' } });
     fireEvent.click(screen.getByRole('button', { name: /Indian Store/ }));
-    fireEvent.change(screen.getByLabelText('Aisle'), { target: { value: 'Dry Goods' } });
+    fireEvent.change(screen.getByLabelText('Aisle'), { target: { value: 'Grains' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add ingredient' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(create).toHaveBeenCalledWith({ name: 'Rice', kind: 'pantry', storeId: 's2', form: 'Dry Goods' });
+    expect(create).toHaveBeenCalledWith({ name: 'Rice', kind: 'pantry', storeId: 's2', form: 'Grains' });
   });
   it('a fresh item defaults its fridge unit to the buy unit and carries a count unit', async () => {
-    const create = vi.spyOn(api.ingredients, 'create').mockResolvedValue({ id: 'y', name: 'Coriander', kind: 'fresh', storeId: 's2', form: 'Produce' });
+    const create = vi.spyOn(api.ingredients, 'create').mockResolvedValue({ id: 'y', name: 'Coriander', kind: 'fresh', storeId: 's2', form: 'Veggies' });
     render(<IngredientDialog stores={stores} onClose={() => {}} onSaved={() => {}} />);
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Coriander' } });
     fireEvent.click(screen.getByRole('button', { name: /Fresh/ }));

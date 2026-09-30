@@ -9,7 +9,7 @@ import type { Ingredient, Recipe, Store } from '../lib/types';
 const stores: Store[] = [{ id: 's1', name: 'Indian Store', sortOrder: 0, color: '#4f8a5f' }];
 const ingredients: Ingredient[] = [
   { id: 'i1', name: 'Paneer', kind: 'fresh', storeId: 's1', form: 'Dairy', buyUnit: 'lb' },
-  { id: 'i2', name: 'Turmeric', kind: 'pantry', storeId: 's1', form: 'Spices' },
+  { id: 'i2', name: 'Turmeric', kind: 'pantry', storeId: 's1', form: 'Masala' },
   { id: 'i3', name: 'Milk', kind: 'weekly', storeId: 's1', form: 'Dairy', weeklyQty: 2 },
 ];
 const recipes: Recipe[] = [{ id: 'r1', title: 'Pav Bhaji', ingredients: [{ ingredientId: 'i1' }], steps: ['Boil the potatoes.'], tags: [] }];

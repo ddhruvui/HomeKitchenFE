@@ -6,7 +6,7 @@ describe('api client', () => {
   it('returns JSON on success', async () => { mockFetch(200, { people: 2, weekStartsOn: 6 }); expect(await api.settings.get()).toEqual({ people: 2, weekStartsOn: 6 }); });
   it('turns an error body into ApiError with the server message', async () => {
     mockFetch(409, { error: 'an ingredient named "Onion" already exists' });
-    await expect(api.ingredients.create({ name: 'Onion', kind: 'pantry', storeId: 's', form: 'Produce' })).rejects.toMatchObject({ status: 409, message: /already exists/ });
+    await expect(api.ingredients.create({ name: 'Onion', kind: 'pantry', storeId: 's', form: 'Veggies' })).rejects.toMatchObject({ status: 409, message: /already exists/ });
   });
   it('treats a missing week list as null, not an error', async () => { mockFetch(404, { error: 'list for that week not found' }); expect(await api.lists.forWeek('2026-09-05')).toBeNull(); });
   it('flattens per-line recipe errors', () => {

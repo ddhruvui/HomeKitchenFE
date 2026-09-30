@@ -4,7 +4,7 @@ export type VolumeUnit = 'tsp' | 'tbsp' | 'floz' | 'cup' | 'pint' | 'quart' | 'g
 export type CountUnit = 'each' | 'bunch';
 export type Unit = WeightUnit | VolumeUnit | CountUnit;
 export type IngredientKind = 'fresh' | 'weekly' | 'pantry';
-export const FORMS = ['Produce', 'Dairy', 'Bakery', 'Frozen', 'Dry Goods', 'Spices', 'Liquid'] as const;
+export const FORMS = ['Veggies', 'Fruits', 'Dairy', 'Frozen', 'Grains', 'Canned', 'Masala', 'Condiments'] as const;
 export type Form = (typeof FORMS)[number];
 
 export interface Store { id: string; name: string; sortOrder: number; color: string; }

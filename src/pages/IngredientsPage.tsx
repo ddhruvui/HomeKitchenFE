@@ -8,17 +8,19 @@ import { api, errorMessage } from '../lib/api';
 import { UNIT_LABEL } from '../lib/format';
 import { byExpiryThenName } from '../lib/dates';
 import { keys, useIngredients, useNeedsBridge, useRecipes, useStores } from '../lib/hooks';
-import type { BridgeEstimate, Ingredient, IngredientKind, Store } from '../lib/types';
+import { FORMS } from '../lib/types';
+import type { BridgeEstimate, Form, Ingredient, IngredientKind, Store } from '../lib/types';
 
 export function IngredientsPage() {
   const ings = useIngredients(); const stores = useStores(); const needs = useNeedsBridge(); const recipes = useRecipes(); const qc = useQueryClient();
   const usedIn = (id: string) => (recipes.data ?? []).filter((r) => r.ingredients.some((l) => l.ingredientId === id)).map((r) => r.title);
   const [filter, setFilter] = useState<'all' | IngredientKind>('all');
+  const [aisle, setAisle] = useState<'all' | Form>('all');
   const [dialog, setDialog] = useState<{ initial?: Ingredient } | null>(null);
   const [storesOpen, setStoresOpen] = useState(false);
   const [ai, setAi] = useState<{ busy: boolean; estimates: BridgeEstimate[]; edits: Record<string, { ozPerCup: string; ozPerCount: string }>; error?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const rows = (ings.data ?? []).filter((i) => filter === 'all' || i.kind === filter).sort(byExpiryThenName);
+  const rows = (ings.data ?? []).filter((i) => (filter === 'all' || i.kind === filter) && (aisle === 'all' || i.form === aisle)).sort(byExpiryThenName);
   const invalidate = () => { qc.invalidateQueries({ queryKey: keys.ingredients }); qc.invalidateQueries({ queryKey: keys.needsBridge }); qc.invalidateQueries({ queryKey: ['needed'] }); };
 
   async function toggleLow(i: Ingredient) { try { await api.ingredients.setLow(i.id, !i.isLow); invalidate(); } catch (e) { setError(errorMessage(e)); } }
@@ -42,6 +44,7 @@ export function IngredientsPage() {
         <div className="col" style={{ gap: 4 }}><span className="eyebrow">Everything this house buys</span><h1>Ingredients</h1></div>
         <div className="row" style={{ gap: 10 }}>
           <div className="seg">{(['all', 'fresh', 'weekly', 'pantry'] as const).map((k) => <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{k === 'all' ? 'All' : KIND_LABEL[k]}</button>)}</div>
+          <select className="select" aria-label="aisle" style={{ width: 'auto' }} value={aisle} onChange={(e) => setAisle(e.target.value as 'all' | Form)}><option value="all">All aisles</option>{FORMS.map((f) => <option key={f}>{f}</option>)}</select>
           <button className="btn" onClick={() => setStoresOpen(true)}>Stores</button>
           <button className="btn primary" disabled={(stores.data ?? []).length === 0} onClick={() => setDialog({})}><Plus size={14} />New ingredient</button>
         </div>
