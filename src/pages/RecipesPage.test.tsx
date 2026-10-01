@@ -12,7 +12,7 @@ const ingredients: Ingredient[] = [
   { id: 'i2', name: 'Turmeric', kind: 'pantry', storeId: 's1', form: 'Masala' },
   { id: 'i3', name: 'Milk', kind: 'weekly', storeId: 's1', form: 'Dairy', weeklyQty: 2 },
 ];
-const recipes: Recipe[] = [{ id: 'r1', title: 'Pav Bhaji', ingredients: [{ ingredientId: 'i1' }], morningSteps: [], steps: ['Boil the potatoes.'], tags: [] }];
+const recipes: Recipe[] = [{ id: 'r1', title: 'Pav Bhaji', ingredients: [{ ingredientId: 'i1' }], morningSteps: [], steps: ['Boil the potatoes.'], tags: [], sources: [] }];
 
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>);
 
@@ -73,13 +73,25 @@ describe('the catalog under a new recipe', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
     expect(update).toHaveBeenCalledWith('r1', expect.objectContaining({ morningSteps: ['Soak the peas.'], steps: ['Boil the potatoes.'] }));
   });
+
+  it('saves sources, links them, and drops blank ones', async () => {
+    const update = vi.spyOn(api.recipes, 'update').mockResolvedValue(recipes[0]);
+    wrap(<RecipesPage />);
+    await userEvent.click(await screen.findByText('Pav Bhaji'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a source' }));
+    await userEvent.type(screen.getByLabelText('source 1'), 'https://www.example.com/pav-bhaji');
+    expect(screen.getByRole('link', { name: 'open example.com' })).toHaveAttribute('href', 'https://www.example.com/pav-bhaji');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a source' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+    expect(update).toHaveBeenCalledWith('r1', expect.objectContaining({ sources: ['https://www.example.com/pav-bhaji'] }));
+  });
 });
 
 describe('filtering by tag', () => {
   const tagged: Recipe[] = [
-    { id: 'r1', title: 'Pav Bhaji', ingredients: [], morningSteps: [], steps: [], tags: ['street food'] },
-    { id: 'r2', title: 'Tomato Soup', ingredients: [], morningSteps: [], steps: [], tags: ['Soup', 'quick'] },
-    { id: 'r3', title: 'Dal Shorba', ingredients: [], morningSteps: [], steps: [], tags: ['soup'] },
+    { id: 'r1', title: 'Pav Bhaji', ingredients: [], morningSteps: [], steps: [], tags: ['street food'], sources: [] },
+    { id: 'r2', title: 'Tomato Soup', ingredients: [], morningSteps: [], steps: [], tags: ['Soup', 'quick'], sources: [] },
+    { id: 'r3', title: 'Dal Shorba', ingredients: [], morningSteps: [], steps: [], tags: ['soup'], sources: [] },
   ];
   beforeEach(() => {
     vi.spyOn(api.recipes, 'list').mockResolvedValue(tagged);

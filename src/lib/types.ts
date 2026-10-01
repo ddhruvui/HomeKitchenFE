@@ -15,7 +15,7 @@ export interface Ingredient {
   expiresOn?: string;
 }
 export interface RecipeLine { ingredientId: string; qty?: number; unit?: Unit; note?: string; }
-export interface Recipe { id: string; title: string; ingredients: RecipeLine[]; morningSteps: string[]; steps: string[]; tags: string[]; }
+export interface Recipe { id: string; title: string; ingredients: RecipeLine[]; morningSteps: string[]; steps: string[]; tags: string[]; sources: string[]; }
 
 export interface EkadashiDay { id: string; date: string; name?: string; }
 

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { IngredientDialog } from '../components/IngredientDialog';
 import { IngredientTable } from '../components/IngredientTable';
 import { RecipeChat } from '../components/RecipeChat';
-import { Check, Down, Plus, Up, X } from '../components/Icons';
+import { Check, Down, External, Plus, Up, X } from '../components/Icons';
 import { api, errorMessage, type RecipeInput } from '../lib/api';
 import { UNIT_LABEL, unitsFor } from '../lib/format';
 import { byExpiryThenName } from '../lib/dates';
@@ -12,24 +12,58 @@ import type { Ingredient, Recipe, Unit } from '../lib/types';
 /** A line while it is being edited: quantity is text until it is saved, and the unit may not be chosen yet. */
 type LineDraft = { ingredientId: string; qty: string; unit: Unit | ''; note: string };
 /** Tags are typed as one comma-separated string and split on save, so a trailing comma survives typing. */
-const blank = (): RecipeInput & { lines: LineDraft[]; tagsText: string } => ({ title: '', ingredients: [], morningSteps: [''], steps: [''], tags: [], tagsText: '', lines: [] });
+const blank = (): RecipeInput & { lines: LineDraft[]; tagsText: string } => ({ title: '', ingredients: [], morningSteps: [''], steps: [''], tags: [], sources: [], tagsText: '', lines: [] });
+
+/** A card whose header carries its name, a one-line hint, and an optional count. */
+function CardHead({ title, hint, count }: { title: string; hint?: string; count?: string }) {
+  return (
+    <div className="card-head" style={{ alignItems: 'flex-start' }}>
+      <div className="titles"><span className="title">{title}</span>{hint && <span className="hint">{hint}</span>}</div>
+      {count && <span className="count" style={{ paddingTop: 5 }}>{count}</span>}
+    </div>
+  );
+}
 
 /** One half of the method: an ordered list of plain lines, edited in place. */
 function StepsCard({ title, hint, placeholder, steps, onChange }: { title: string; hint: string; placeholder: string; steps: string[]; onChange: (s: string[]) => void }) {
   const move = (i: number, dir: -1 | 1) => { const s = steps.slice(); const j = i + dir; if (j < 0 || j >= s.length) return; [s[i], s[j]] = [s[j], s[i]]; onChange(s); };
   const label = title.toLowerCase();
+  const n = steps.filter((s) => s.trim()).length;
   return (
     <div className="card">
-      <div className="card-head"><span className="serif" style={{ fontSize: 19, flexGrow: 1 }}>{title}</span><span className="mono faint" style={{ fontSize: 12 }}>{steps.filter((s) => s.trim()).length} steps</span></div>
-      <div className="row" style={{ padding: '0 20px 6px' }}><span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5 }}>{hint}</span></div>
+      <CardHead title={title} hint={hint} count={`${n} step${n === 1 ? '' : 's'}`} />
       {steps.map((s, i) => (
-        <div key={i} className="row" style={{ padding: '8px 20px', gap: 10, alignItems: 'flex-start', borderBottom: '1px solid #f6f1e8' }}>
-          <span className="num mono" style={{ width: 22, height: 22, borderRadius: 999, background: 'var(--soft)', color: 'var(--accent-ink)', fontSize: 11.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 7 }}>{i + 1}</span>
-          <textarea aria-label={`${label} step ${i + 1}`} className="textarea" rows={1} style={{ resize: 'vertical', minHeight: 36 }} value={s} placeholder={placeholder} onChange={(e) => onChange(steps.map((x, j) => (j === i ? e.target.value : x)))} />
-          <div className="col" style={{ gap: 2 }}><button aria-label="move up" style={{ color: '#c0b7ab' }} onClick={() => move(i, -1)}><Up size={12} /></button><button aria-label="move down" style={{ color: '#c0b7ab' }} onClick={() => move(i, 1)}><Down size={12} /></button></div>
-          <button aria-label={`remove ${label} step`} style={{ color: '#c0b7ab', marginTop: 8 }} onClick={() => onChange(steps.filter((_, j) => j !== i))}><X size={12} /></button>
+        <div key={i} className="edit-row">
+          <span className="num">{i + 1}</span>
+          <textarea aria-label={`${label} step ${i + 1}`} className="textarea" rows={1} value={s} placeholder={placeholder} onChange={(e) => onChange(steps.map((x, j) => (j === i ? e.target.value : x)))} />
+          <div className="tools">
+            <button className="icon-btn" aria-label="move up" disabled={i === 0} onClick={() => move(i, -1)}><Up size={13} /></button>
+            <button className="icon-btn" aria-label="move down" disabled={i === steps.length - 1} onClick={() => move(i, 1)}><Down size={13} /></button>
+            <button className="icon-btn remove" aria-label={`remove ${label} step`} onClick={() => onChange(steps.filter((_, j) => j !== i))}><X size={12} /></button>
+          </div>
         </div>))}
-      <button className="row faint" style={{ padding: '12px 20px', fontSize: 13.5 }} onClick={() => onChange([...steps, ''])}><Plus size={14} />Add a {label} step</button>
+      <button className="add-row" onClick={() => onChange([...steps, ''])}><Plus size={14} />Add {/^[aeiou]/.test(label) ? 'an' : 'a'} {label} step</button>
+    </div>
+  );
+}
+
+const isUrl = (s: string) => /^https?:\/\/\S+$/i.test(s.trim());
+const hostOf = (s: string) => { try { return new URL(s.trim()).hostname.replace(/^www\./, ''); } catch { return s; } };
+
+/** Where the recipe came from — a link or a plain note — kept for reference, never read by the planner. */
+function SourcesCard({ sources, onChange }: { sources: string[]; onChange: (s: string[]) => void }) {
+  return (
+    <div className="card">
+      <CardHead title="Sources" hint="Where this recipe came from — a video, a blog, a book, someone's notebook. For reference only." count={sources.filter((s) => s.trim()).length ? `${sources.filter((s) => s.trim()).length} saved` : undefined} />
+      {sources.map((s, i) => (
+        <div key={i} className="edit-row" style={{ alignItems: 'center' }}>
+          <input aria-label={`source ${i + 1}`} className="input" value={s} placeholder="https://… or “Mom's notebook”" onChange={(e) => onChange(sources.map((x, j) => (j === i ? e.target.value : x)))} />
+          <div className="tools" style={{ opacity: 1 }}>
+            {isUrl(s) && <a className="icon-btn" href={s.trim()} target="_blank" rel="noreferrer" aria-label={`open ${hostOf(s)}`} title={`Open ${hostOf(s)}`}><External size={14} /></a>}
+            <button className="icon-btn remove" aria-label="remove source" onClick={() => onChange(sources.filter((_, j) => j !== i))}><X size={12} /></button>
+          </div>
+        </div>))}
+      <button className="add-row" onClick={() => onChange([...sources, ''])}><Plus size={14} />Add a source</button>
     </div>
   );
 }
@@ -51,7 +85,7 @@ export function RecipesPage() {
   useEffect(() => {
     if (selected === 'new' || selected === null) { setDraft(blank()); return; }
     const r = recipes.data?.find((x) => x.id === selected);
-    if (r) setDraft({ title: r.title, tags: r.tags, tagsText: r.tags.join(', '), morningSteps: r.morningSteps?.length ? r.morningSteps : [''], steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
+    if (r) setDraft({ title: r.title, tags: r.tags, tagsText: r.tags.join(', '), sources: r.sources ?? [], morningSteps: r.morningSteps?.length ? r.morningSteps : [''], steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
   }, [selected, recipes.data]);
 
   const allTags = useMemo(() => [...new Set((recipes.data ?? []).flatMap((r) => r.tags.map((t) => t.toLowerCase())))].sort(), [recipes.data]);
@@ -62,7 +96,7 @@ export function RecipesPage() {
     setBusy(true); setError(null);
     const body: RecipeInput = {
       title: draft.title.trim(), tags: draft.tagsText.split(',').map((t) => t.trim()).filter(Boolean),
-      morningSteps: draft.morningSteps.map((s) => s.trim()).filter(Boolean), steps: draft.steps.map((s) => s.trim()).filter(Boolean),
+      morningSteps: draft.morningSteps.map((s) => s.trim()).filter(Boolean), sources: draft.sources.map((s) => s.trim()).filter(Boolean), steps: draft.steps.map((s) => s.trim()).filter(Boolean),
       ingredients: draft.lines.filter((l) => l.ingredientId).map((l) => ({ ingredientId: l.ingredientId, ...(l.qty.trim() ? { qty: Number(l.qty) } : {}), ...(l.unit ? { unit: l.unit } : {}), ...(l.note.trim() ? { note: l.note.trim() } : {}) })),
     };
     try {
@@ -90,21 +124,20 @@ export function RecipesPage() {
           </div></div>
 
         {!editing ? <div className="card"><div className="empty">Pick a recipe on the left, or start a new one.</div></div> : (
-          <div className="col" style={{ gap: 16 }}>
+          <div className="editor">
             <div className="card"><div className="card-body">
-              <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
-                <div className="field" style={{ flex: 2 }}><label htmlFor="r-title">Title</label><input id="r-title" className="input serif" style={{ fontSize: 22 }} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Pav Bhaji" /></div>
-                <div className="field" style={{ flex: 1 }}><label htmlFor="r-tags">Tags <span className="faint">(comma separated)</span></label><input id="r-tags" className="input" value={draft.tagsText} onChange={(e) => setDraft({ ...draft, tagsText: e.target.value })} placeholder="veg, weeknight" /></div>
+              <div className="row" style={{ gap: 12, alignItems: 'flex-end' }}>
+                <div className="field" style={{ flex: 2 }}><label htmlFor="r-title">Title</label><input id="r-title" className="input title-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Pav Bhaji" /></div>
+                <div className="field" style={{ flex: 1 }}><label htmlFor="r-tags">Tags <span className="faint">(comma separated)</span></label><input id="r-tags" className="input tags-input" value={draft.tagsText} onChange={(e) => setDraft({ ...draft, tagsText: e.target.value })} placeholder="veg, weeknight" /></div>
               </div>
-              <div className="row">
-                <span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5, flexGrow: 1 }}>Amounts are for one meal, two people. Dinner doubles them; the household count scales the rest.</span>
-              </div>
+              <span className="note-line">Amounts are for one meal, two people. Dinner doubles them; the household count scales the rest.</span>
             </div></div>
 
             {selected === 'new' && <RecipeChat title={draft.title} />}
 
             <div className="card">
-              <div className="lines head"><span>Qty</span><span>Unit</span><span>Ingredient</span><span>Note</span><span /></div>
+              <CardHead title="Ingredients" count={`${draft.lines.length} line${draft.lines.length === 1 ? '' : 's'}`} />
+              {draft.lines.length > 0 && <div className="lines head"><span>Qty</span><span>Unit</span><span>Ingredient</span><span>Note</span><span /></div>}
               {draft.lines.map((l, i) => { const ing: Ingredient | undefined = byId[l.ingredientId]; const pantry = ing?.kind === 'pantry'; return (
                 <div key={i} className="lines" style={pantry ? { background: '#fdfcfa' } : undefined}>
                   <input aria-label="quantity" className="input mono small" type="number" min="0" step="any" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} />
@@ -113,16 +146,17 @@ export function RecipesPage() {
                     <option value="">choose…</option>{(ings.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}<option value="__new">+ New ingredient…</option></select>
                     {ing && <span className={'chip ' + ing.kind}>{ing.kind}</span>}</div>
                   <input aria-label="note" className="input small" placeholder={pantry ? 'not counted — bought when low' : 'finely chopped'} value={l.note} onChange={(e) => setLine(i, { note: e.target.value })} />
-                  <button aria-label="remove line" style={{ color: '#c0b7ab' }} onClick={() => setDraft({ ...draft, lines: draft.lines.filter((_, j) => j !== i) })}><X size={12} /></button>
+                  <button className="icon-btn remove" aria-label="remove line" onClick={() => setDraft({ ...draft, lines: draft.lines.filter((_, j) => j !== i) })}><X size={12} /></button>
                 </div>); })}
-              <button className="row faint" style={{ padding: '12px 20px', fontSize: 13.5 }} onClick={() => setDraft({ ...draft, lines: [...draft.lines, { ingredientId: '', qty: '', unit: '', note: '' }] })}><Plus size={14} />Add an ingredient</button>
+              <button className="add-row" onClick={() => setDraft({ ...draft, lines: [...draft.lines, { ingredientId: '', qty: '', unit: '', note: '' }] })}><Plus size={14} />Add an ingredient</button>
             </div>
 
             <StepsCard title="Morning" hint="Hours ahead — soak, thaw, set the curd. Leave empty if there is nothing." placeholder="Soak the chana." steps={draft.morningSteps} onChange={(morningSteps) => setDraft((d) => ({ ...d, morningSteps }))} />
             <StepsCard title="Evening" hint="The cooking itself." placeholder="Boil the potatoes until soft." steps={draft.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} />
+            <SourcesCard sources={draft.sources} onChange={(sources) => setDraft((d) => ({ ...d, sources }))} />
 
             {error && <div className="banner red">{error}</div>}
-            <div className="row" style={{ gap: 10 }}>
+            <div className="save-bar">
               {selected !== 'new' && <button className="btn danger" onClick={remove}>Delete recipe</button>}
               <div className="spacer" /><button className="btn" onClick={() => setSelected(null)}>Discard</button>
               <button className="btn primary" disabled={busy || !draft.title.trim()} onClick={save}>{busy ? 'Saving…' : 'Save recipe'}</button>
@@ -130,8 +164,7 @@ export function RecipesPage() {
 
             {selected === 'new' && (
               <div className="card">
-                <div className="card-head"><span className="serif" style={{ fontSize: 19, flexGrow: 1 }}>Everything this house buys</span><span className="mono faint" style={{ fontSize: 12 }}>{catalog.length} ingredient{catalog.length === 1 ? '' : 's'}</span></div>
-                <div className="row" style={{ padding: '10px 20px 0' }}><span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5 }}>Add one with +, then set its amount above. Anything missing from this list needs + New ingredient first.</span></div>
+                <CardHead title="Everything this house buys" hint="Add one with +, then set its amount above. Anything missing needs + New ingredient first." count={`${catalog.length} ingredient${catalog.length === 1 ? '' : 's'}`} />
                 <IngredientTable
                   rows={catalog} stores={stores.data ?? []} empty="No ingredients yet — add one from the picker above."
                   extra={[{ head: '', cell: (i) => onRecipe.has(i.id)
