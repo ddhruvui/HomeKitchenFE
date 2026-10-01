@@ -1,7 +1,7 @@
 // Mirror of HomeKitchenBE/shared/src/types.ts — shapes only. The API is the source of truth.
 export type WeightUnit = 'oz' | 'lb';
 export type VolumeUnit = 'tsp' | 'tbsp' | 'floz' | 'cup' | 'pint' | 'quart' | 'gallon';
-export type CountUnit = 'each' | 'bunch';
+export type CountUnit = 'each' | 'bunch' | 'clove';
 export type Unit = WeightUnit | VolumeUnit | CountUnit;
 export type IngredientKind = 'fresh' | 'weekly' | 'pantry';
 export const FORMS = ['Veggies', 'Fruits', 'Dairy', 'Bread', 'Frozen', 'Grains', 'Oil', 'Canned', 'Masala'] as const;

@@ -3,8 +3,8 @@ import type { CountUnit, Unit } from './types';
 
 export const WEIGHT_UNITS: Unit[] = ['oz', 'lb'];
 export const VOLUME_UNITS: Unit[] = ['tsp', 'tbsp', 'floz', 'cup', 'pint', 'quart', 'gallon'];
-export const COUNT_UNITS: CountUnit[] = ['each', 'bunch'];
-export const UNIT_LABEL: Record<Unit, string> = { oz: 'oz', lb: 'lb', tsp: 'tsp', tbsp: 'tbsp', floz: 'fl oz', cup: 'cup', pint: 'pint', quart: 'qt', gallon: 'gal', each: 'each', bunch: 'bunch' };
+export const COUNT_UNITS: CountUnit[] = ['each', 'bunch', 'clove'];
+export const UNIT_LABEL: Record<Unit, string> = { oz: 'oz', lb: 'lb', tsp: 'tsp', tbsp: 'tbsp', floz: 'fl oz', cup: 'cup', pint: 'pint', quart: 'qt', gallon: 'gal', each: 'each', bunch: 'bunch', clove: 'clove' };
 
 export function familyOf(u: Unit): 'weight' | 'volume' | 'count' {
   if (WEIGHT_UNITS.includes(u)) return 'weight';
