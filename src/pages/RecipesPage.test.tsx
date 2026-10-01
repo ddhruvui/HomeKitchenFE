@@ -74,3 +74,35 @@ describe('the catalog under a new recipe', () => {
     expect(update).toHaveBeenCalledWith('r1', expect.objectContaining({ morningSteps: ['Soak the peas.'], steps: ['Boil the potatoes.'] }));
   });
 });
+
+describe('filtering by tag', () => {
+  const tagged: Recipe[] = [
+    { id: 'r1', title: 'Pav Bhaji', ingredients: [], morningSteps: [], steps: [], tags: ['street food'] },
+    { id: 'r2', title: 'Tomato Soup', ingredients: [], morningSteps: [], steps: [], tags: ['Soup', 'quick'] },
+    { id: 'r3', title: 'Dal Shorba', ingredients: [], morningSteps: [], steps: [], tags: ['soup'] },
+  ];
+  beforeEach(() => {
+    vi.spyOn(api.recipes, 'list').mockResolvedValue(tagged);
+    vi.spyOn(api.ingredients, 'list').mockResolvedValue(ingredients);
+    vi.spyOn(api.stores, 'list').mockResolvedValue(stores);
+  });
+
+  it('shows only recipes with the picked tag, ignoring case, and clears on a second click', async () => {
+    wrap(<RecipesPage />);
+    const soup = await screen.findByRole('button', { name: 'soup' });
+    await userEvent.click(soup);
+    expect(screen.getByText('Tomato Soup')).toBeInTheDocument();
+    expect(screen.getByText('Dal Shorba')).toBeInTheDocument();
+    expect(screen.queryByText('Pav Bhaji')).not.toBeInTheDocument();
+    await userEvent.click(soup);
+    expect(screen.getByText('Pav Bhaji')).toBeInTheDocument();
+  });
+
+  it('lets you type a comma between tags', async () => {
+    wrap(<RecipesPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /New recipe/ }));
+    const input = screen.getByLabelText(/Tags/);
+    await userEvent.type(input, 'soup, quick');
+    expect(input).toHaveValue('soup, quick');
+  });
+});

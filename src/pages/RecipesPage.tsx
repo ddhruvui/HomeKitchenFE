@@ -11,7 +11,8 @@ import { keys, useIngredients, useRecipes, useStores } from '../lib/hooks';
 import type { Ingredient, Recipe, Unit } from '../lib/types';
 /** A line while it is being edited: quantity is text until it is saved, and the unit may not be chosen yet. */
 type LineDraft = { ingredientId: string; qty: string; unit: Unit | ''; note: string };
-const blank = (): RecipeInput & { lines: LineDraft[] } => ({ title: '', ingredients: [], morningSteps: [''], steps: [''], tags: [], lines: [] });
+/** Tags are typed as one comma-separated string and split on save, so a trailing comma survives typing. */
+const blank = (): RecipeInput & { lines: LineDraft[]; tagsText: string } => ({ title: '', ingredients: [], morningSteps: [''], steps: [''], tags: [], tagsText: '', lines: [] });
 
 /** One half of the method: an ordered list of plain lines, edited in place. */
 function StepsCard({ title, hint, placeholder, steps, onChange }: { title: string; hint: string; placeholder: string; steps: string[]; onChange: (s: string[]) => void }) {
@@ -37,6 +38,7 @@ export function RecipesPage() {
   const recipes = useRecipes(); const ings = useIngredients(); const stores = useStores(); const qc = useQueryClient();
   const [selected, setSelected] = useState<string | 'new' | null>(null);
   const [search, setSearch] = useState('');
+  const [tag, setTag] = useState<string | null>(null);
   const [draft, setDraft] = useState(blank());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,16 +51,17 @@ export function RecipesPage() {
   useEffect(() => {
     if (selected === 'new' || selected === null) { setDraft(blank()); return; }
     const r = recipes.data?.find((x) => x.id === selected);
-    if (r) setDraft({ title: r.title, tags: r.tags, morningSteps: r.morningSteps?.length ? r.morningSteps : [''], steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
+    if (r) setDraft({ title: r.title, tags: r.tags, tagsText: r.tags.join(', '), morningSteps: r.morningSteps?.length ? r.morningSteps : [''], steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
   }, [selected, recipes.data]);
 
-  const filtered = (recipes.data ?? []).filter((r) => r.title.toLowerCase().includes(search.toLowerCase()));
+  const allTags = useMemo(() => [...new Set((recipes.data ?? []).flatMap((r) => r.tags.map((t) => t.toLowerCase())))].sort(), [recipes.data]);
+  const filtered = (recipes.data ?? []).filter((r) => r.title.toLowerCase().includes(search.toLowerCase()) && (!tag || r.tags.some((t) => t.toLowerCase() === tag)));
   const setLine = (i: number, patch: Partial<LineDraft>) => setDraft((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
 
   async function save() {
     setBusy(true); setError(null);
     const body: RecipeInput = {
-      title: draft.title.trim(), tags: draft.tags,
+      title: draft.title.trim(), tags: draft.tagsText.split(',').map((t) => t.trim()).filter(Boolean),
       morningSteps: draft.morningSteps.map((s) => s.trim()).filter(Boolean), steps: draft.steps.map((s) => s.trim()).filter(Boolean),
       ingredients: draft.lines.filter((l) => l.ingredientId).map((l) => ({ ingredientId: l.ingredientId, ...(l.qty.trim() ? { qty: Number(l.qty) } : {}), ...(l.unit ? { unit: l.unit } : {}), ...(l.note.trim() ? { note: l.note.trim() } : {}) })),
     };
@@ -79,9 +82,10 @@ export function RecipesPage() {
       <div className="page-head"><div className="col" style={{ gap: 4 }}><span className="eyebrow">Recipes</span><h1>{recipes.data?.length ?? 0} in the book</h1></div>
         <button className="btn primary" onClick={() => setSelected('new')}><Plus size={14} />New recipe</button></div>
       <div className="split">
-        <div className="card"><div style={{ padding: 12 }}><input className="input" placeholder="Search recipes" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="card"><div style={{ padding: 12 }}><input className="input" placeholder="Search recipes" value={search} onChange={(e) => setSearch(e.target.value)} />
+            {allTags.length > 0 && <div className="seg" style={{ flexWrap: 'wrap', marginTop: 10 }}>{allTags.map((t) => <button key={t} className={tag === t ? 'on' : ''} style={{ padding: '4px 11px', fontSize: 12.5 }} aria-pressed={tag === t} onClick={() => setTag(tag === t ? null : t)}>{t}</button>)}</div>}</div>
           <div className="col" style={{ gap: 2, padding: '0 8px 8px' }}>
-            {filtered.length === 0 && <div className="empty">No recipes yet.</div>}
+            {filtered.length === 0 && <div className="empty">{recipes.data?.length ? 'No recipes match.' : 'No recipes yet.'}</div>}
             {filtered.map((r) => <div key={r.id} className={'list-item' + (selected === r.id ? ' on' : '')} onClick={() => setSelected(r.id)}><span>{r.title}</span><small>{r.ingredients.length}</small></div>)}
           </div></div>
 
@@ -90,7 +94,7 @@ export function RecipesPage() {
             <div className="card"><div className="card-body">
               <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
                 <div className="field" style={{ flex: 2 }}><label htmlFor="r-title">Title</label><input id="r-title" className="input serif" style={{ fontSize: 22 }} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="Pav Bhaji" /></div>
-                <div className="field" style={{ flex: 1 }}><label htmlFor="r-tags">Tags <span className="faint">(comma separated)</span></label><input id="r-tags" className="input" value={draft.tags.join(', ')} onChange={(e) => setDraft({ ...draft, tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) })} placeholder="veg, weeknight" /></div>
+                <div className="field" style={{ flex: 1 }}><label htmlFor="r-tags">Tags <span className="faint">(comma separated)</span></label><input id="r-tags" className="input" value={draft.tagsText} onChange={(e) => setDraft({ ...draft, tagsText: e.target.value })} placeholder="veg, weeknight" /></div>
               </div>
               <div className="row">
                 <span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5, flexGrow: 1 }}>Amounts are for one meal, two people. Dinner doubles them; the household count scales the rest.</span>
