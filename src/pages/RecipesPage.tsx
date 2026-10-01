@@ -88,7 +88,9 @@ export function RecipesPage() {
     if (r) setDraft({ title: r.title, tags: r.tags, tagsText: r.tags.join(', '), sources: r.sources ?? [], morningSteps: r.morningSteps?.length ? r.morningSteps : [''], steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
   }, [selected, recipes.data]);
 
-  const allTags = useMemo(() => [...new Set((recipes.data ?? []).flatMap((r) => r.tags.map((t) => t.toLowerCase())))].sort(), [recipes.data]);
+  /** Each tag once, lower-cased, with how many recipes carry it — a recipe tagged "Soup" and "soup" counts once. */
+  const tagCounts = useMemo(() => { const n: Record<string, number> = {}; for (const r of recipes.data ?? []) for (const t of new Set(r.tags.map((x) => x.toLowerCase()))) n[t] = (n[t] ?? 0) + 1; return n; }, [recipes.data]);
+  const allTags = useMemo(() => Object.keys(tagCounts).sort(), [tagCounts]);
   const filtered = (recipes.data ?? []).filter((r) => r.title.toLowerCase().includes(search.toLowerCase()) && (!tag || r.tags.some((t) => t.toLowerCase() === tag)));
   const setLine = (i: number, patch: Partial<LineDraft>) => setDraft((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
 
@@ -117,7 +119,7 @@ export function RecipesPage() {
         <button className="btn primary" onClick={() => setSelected('new')}><Plus size={14} />New recipe</button></div>
       <div className="split">
         <div className="card"><div style={{ padding: 12 }}><input className="input" placeholder="Search recipes" value={search} onChange={(e) => setSearch(e.target.value)} />
-            {allTags.length > 0 && <div className="seg" style={{ flexWrap: 'wrap', marginTop: 10 }}>{allTags.map((t) => <button key={t} className={tag === t ? 'on' : ''} style={{ padding: '4px 11px', fontSize: 12.5 }} aria-pressed={tag === t} onClick={() => setTag(tag === t ? null : t)}>{t}</button>)}</div>}</div>
+            {allTags.length > 0 && <div className="seg" style={{ flexWrap: 'wrap', marginTop: 10 }}>{allTags.map((t) => <button key={t} className={tag === t ? 'on' : ''} style={{ padding: '4px 11px', fontSize: 12.5 }} aria-label={`${t} (${tagCounts[t]})`} aria-pressed={tag === t} onClick={() => setTag(tag === t ? null : t)}>{t}<span className="tag-count">{tagCounts[t]}</span></button>)}</div>}</div>
           <div className="col" style={{ gap: 2, padding: '0 8px 8px' }}>
             {filtered.length === 0 && <div className="empty">{recipes.data?.length ? 'No recipes match.' : 'No recipes yet.'}</div>}
             {filtered.map((r) => <div key={r.id} className={'list-item' + (selected === r.id ? ' on' : '')} onClick={() => setSelected(r.id)}><span>{r.title}</span><small>{r.ingredients.length}</small></div>)}

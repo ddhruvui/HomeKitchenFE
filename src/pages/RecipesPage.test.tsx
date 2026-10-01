@@ -101,7 +101,9 @@ describe('filtering by tag', () => {
 
   it('shows only recipes with the picked tag, ignoring case, and clears on a second click', async () => {
     wrap(<RecipesPage />);
-    const soup = await screen.findByRole('button', { name: 'soup' });
+    const soup = await screen.findByRole('button', { name: 'soup (2)' });
+    expect(screen.getByRole('button', { name: 'quick (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'street food (1)' })).toBeInTheDocument();
     await userEvent.click(soup);
     expect(screen.getByText('Tomato Soup')).toBeInTheDocument();
     expect(screen.getByText('Dal Shorba')).toBeInTheDocument();

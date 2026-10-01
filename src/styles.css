@@ -62,6 +62,7 @@ h1, h2, h3 { margin: 0; font-family: var(--serif); font-weight: 500; letter-spac
 .fasttag { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent-soft); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
 .dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
 .seg { display: flex; gap: 7px; } .seg button { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--field-line); background: var(--surface); font-size: 13px; font-weight: 500; color: #4a423a; }
+.seg button .tag-count { margin-left: 6px; font-family: var(--mono); font-size: 11px; color: var(--faint); } .seg button.on .tag-count { color: #c9bfb2; }
 .seg button.on { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
 
 .input, .select, .textarea { padding: 9px 12px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--field); width: 100%; }
