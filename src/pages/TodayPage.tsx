@@ -21,6 +21,12 @@ export function TodayPage() {
   const toggle = (k: string) => setDone((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const isToday = date === todayStr();
 
+  const Steps = ({ title, keyBase, steps }: { title: string; keyBase: string; steps: string[] }) => steps.length === 0 ? null : (<>
+    <div style={{ padding: '12px 20px 4px' }}><span className="eyebrow" style={{ fontSize: 10.5 }}>{title}</span></div>
+    {steps.map((s, i) => { const k = keyBase + i; const d = done.has(k); return (
+      <div key={i} className={'step' + (d ? ' done' : '')} onClick={() => toggle(k)}><span className="num">{d ? '✓' : i + 1}</span><span className="t">{s}</span></div>); })}
+  </>);
+
   const Card = ({ slot, label, factor, recipes }: { slot: string; label: string; factor: string; recipes: ScaledRecipe[] }) => (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: 200 }}>
       <div className="card-head"><span className="eyebrow accent">{label}</span><span className="faint" style={{ fontSize: 12 }}>{factor}</span></div>
@@ -28,12 +34,11 @@ export function TodayPage() {
         {recipes.length === 0 && <div className="empty">Nothing planned for {label.toLowerCase()}</div>}
         {recipes.map((r, ri) => (
           <div key={r.recipeId} style={ri > 0 ? { borderTop: '1px solid var(--rule-soft)', marginTop: 6 } : undefined}>
-            <div className="col" style={{ gap: 3, padding: '16px 20px 8px' }}><span className="serif" style={{ fontSize: 22, fontWeight: 500 }}>{r.title}</span><span className="faint" style={{ fontSize: 12 }}>{r.lines.length} ingredients · {r.steps.length} steps</span></div>
+            <div className="col" style={{ gap: 3, padding: '16px 20px 8px' }}><span className="serif" style={{ fontSize: 22, fontWeight: 500 }}>{r.title}</span><span className="faint" style={{ fontSize: 12 }}>{r.lines.length} ingredients · {r.morningSteps.length + r.steps.length} steps</span></div>
             <div style={{ padding: '12px 20px 4px' }}><span className="eyebrow" style={{ fontSize: 10.5 }}>Ingredients</span></div>
             {r.lines.map((l, i) => <div key={i} className="line"><span className="q">{l.qty !== undefined ? formatQty(l.qty) : ''}</span><span className="u">{l.unit ? UNIT_LABEL[l.unit] : ''}</span><span><span className="n">{l.name}</span>{l.note && <small>{l.note}</small>}</span></div>)}
-            {r.steps.length > 0 && <div style={{ padding: '12px 20px 4px' }}><span className="eyebrow" style={{ fontSize: 10.5 }}>Method</span></div>}
-            {r.steps.map((s, i) => { const k = `${date}|${slot}|${r.recipeId}|${i}`; const d = done.has(k); return (
-              <div key={i} className={'step' + (d ? ' done' : '')} onClick={() => toggle(k)}><span className="num">{d ? '✓' : i + 1}</span><span className="t">{s}</span></div>); })}
+            <Steps title="Morning" keyBase={`${date}|${slot}|${r.recipeId}|m`} steps={r.morningSteps} />
+            <Steps title="Evening" keyBase={`${date}|${slot}|${r.recipeId}|`} steps={r.steps} />
           </div>
         ))}
       </div>

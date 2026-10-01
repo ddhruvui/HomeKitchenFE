@@ -12,7 +12,7 @@ const ingredients: Ingredient[] = [
   { id: 'i2', name: 'Turmeric', kind: 'pantry', storeId: 's1', form: 'Masala' },
   { id: 'i3', name: 'Milk', kind: 'weekly', storeId: 's1', form: 'Dairy', weeklyQty: 2 },
 ];
-const recipes: Recipe[] = [{ id: 'r1', title: 'Pav Bhaji', ingredients: [{ ingredientId: 'i1' }], steps: ['Boil the potatoes.'], tags: [] }];
+const recipes: Recipe[] = [{ id: 'r1', title: 'Pav Bhaji', ingredients: [{ ingredientId: 'i1' }], morningSteps: [], steps: ['Boil the potatoes.'], tags: [] }];
 
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>);
 
@@ -62,5 +62,15 @@ describe('the catalog under a new recipe', () => {
     await userEvent.click(await screen.findByText('Pav Bhaji'));
     expect(await screen.findByDisplayValue('Pav Bhaji')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('saves morning and evening steps as separate lists', async () => {
+    const update = vi.spyOn(api.recipes, 'update').mockResolvedValue(recipes[0]);
+    wrap(<RecipesPage />);
+    await userEvent.click(await screen.findByText('Pav Bhaji'));
+    expect(await screen.findByDisplayValue('Boil the potatoes.')).toHaveAccessibleName('evening step 1');
+    await userEvent.type(screen.getByLabelText('morning step 1'), 'Soak the peas.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+    expect(update).toHaveBeenCalledWith('r1', expect.objectContaining({ morningSteps: ['Soak the peas.'], steps: ['Boil the potatoes.'] }));
   });
 });

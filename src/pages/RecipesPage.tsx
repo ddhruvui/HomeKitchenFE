@@ -11,7 +11,27 @@ import { keys, useIngredients, useRecipes, useStores } from '../lib/hooks';
 import type { Ingredient, Recipe, Unit } from '../lib/types';
 /** A line while it is being edited: quantity is text until it is saved, and the unit may not be chosen yet. */
 type LineDraft = { ingredientId: string; qty: string; unit: Unit | ''; note: string };
-const blank = (): RecipeInput & { lines: LineDraft[] } => ({ title: '', ingredients: [], steps: [''], tags: [], lines: [] });
+const blank = (): RecipeInput & { lines: LineDraft[] } => ({ title: '', ingredients: [], morningSteps: [''], steps: [''], tags: [], lines: [] });
+
+/** One half of the method: an ordered list of plain lines, edited in place. */
+function StepsCard({ title, hint, placeholder, steps, onChange }: { title: string; hint: string; placeholder: string; steps: string[]; onChange: (s: string[]) => void }) {
+  const move = (i: number, dir: -1 | 1) => { const s = steps.slice(); const j = i + dir; if (j < 0 || j >= s.length) return; [s[i], s[j]] = [s[j], s[i]]; onChange(s); };
+  const label = title.toLowerCase();
+  return (
+    <div className="card">
+      <div className="card-head"><span className="serif" style={{ fontSize: 19, flexGrow: 1 }}>{title}</span><span className="mono faint" style={{ fontSize: 12 }}>{steps.filter((s) => s.trim()).length} steps</span></div>
+      <div className="row" style={{ padding: '0 20px 6px' }}><span className="serif faint" style={{ fontStyle: 'italic', fontSize: 12.5 }}>{hint}</span></div>
+      {steps.map((s, i) => (
+        <div key={i} className="row" style={{ padding: '8px 20px', gap: 10, alignItems: 'flex-start', borderBottom: '1px solid #f6f1e8' }}>
+          <span className="num mono" style={{ width: 22, height: 22, borderRadius: 999, background: 'var(--soft)', color: 'var(--accent-ink)', fontSize: 11.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 7 }}>{i + 1}</span>
+          <textarea aria-label={`${label} step ${i + 1}`} className="textarea" rows={1} style={{ resize: 'vertical', minHeight: 36 }} value={s} placeholder={placeholder} onChange={(e) => onChange(steps.map((x, j) => (j === i ? e.target.value : x)))} />
+          <div className="col" style={{ gap: 2 }}><button aria-label="move up" style={{ color: '#c0b7ab' }} onClick={() => move(i, -1)}><Up size={12} /></button><button aria-label="move down" style={{ color: '#c0b7ab' }} onClick={() => move(i, 1)}><Down size={12} /></button></div>
+          <button aria-label={`remove ${label} step`} style={{ color: '#c0b7ab', marginTop: 8 }} onClick={() => onChange(steps.filter((_, j) => j !== i))}><X size={12} /></button>
+        </div>))}
+      <button className="row faint" style={{ padding: '12px 20px', fontSize: 13.5 }} onClick={() => onChange([...steps, ''])}><Plus size={14} />Add a {label} step</button>
+    </div>
+  );
+}
 
 export function RecipesPage() {
   const recipes = useRecipes(); const ings = useIngredients(); const stores = useStores(); const qc = useQueryClient();
@@ -29,18 +49,17 @@ export function RecipesPage() {
   useEffect(() => {
     if (selected === 'new' || selected === null) { setDraft(blank()); return; }
     const r = recipes.data?.find((x) => x.id === selected);
-    if (r) setDraft({ title: r.title, tags: r.tags, steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
+    if (r) setDraft({ title: r.title, tags: r.tags, morningSteps: r.morningSteps?.length ? r.morningSteps : [''], steps: r.steps.length ? r.steps : [''], ingredients: [], lines: r.ingredients.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty?.toString() ?? '', unit: l.unit ?? '', note: l.note ?? '' })) });
   }, [selected, recipes.data]);
 
   const filtered = (recipes.data ?? []).filter((r) => r.title.toLowerCase().includes(search.toLowerCase()));
   const setLine = (i: number, patch: Partial<LineDraft>) => setDraft((d) => ({ ...d, lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
-  const setStep = (i: number, v: string) => setDraft((d) => ({ ...d, steps: d.steps.map((s, j) => (j === i ? v : s)) }));
-  const moveStep = (i: number, dir: -1 | 1) => setDraft((d) => { const s = d.steps.slice(); const j = i + dir; if (j < 0 || j >= s.length) return d; [s[i], s[j]] = [s[j], s[i]]; return { ...d, steps: s }; });
 
   async function save() {
     setBusy(true); setError(null);
     const body: RecipeInput = {
-      title: draft.title.trim(), tags: draft.tags, steps: draft.steps.map((s) => s.trim()).filter(Boolean),
+      title: draft.title.trim(), tags: draft.tags,
+      morningSteps: draft.morningSteps.map((s) => s.trim()).filter(Boolean), steps: draft.steps.map((s) => s.trim()).filter(Boolean),
       ingredients: draft.lines.filter((l) => l.ingredientId).map((l) => ({ ingredientId: l.ingredientId, ...(l.qty.trim() ? { qty: Number(l.qty) } : {}), ...(l.unit ? { unit: l.unit } : {}), ...(l.note.trim() ? { note: l.note.trim() } : {}) })),
     };
     try {
@@ -95,17 +114,8 @@ export function RecipesPage() {
               <button className="row faint" style={{ padding: '12px 20px', fontSize: 13.5 }} onClick={() => setDraft({ ...draft, lines: [...draft.lines, { ingredientId: '', qty: '', unit: '', note: '' }] })}><Plus size={14} />Add an ingredient</button>
             </div>
 
-            <div className="card">
-              <div className="card-head"><span className="serif" style={{ fontSize: 19, flexGrow: 1 }}>Method</span><span className="mono faint" style={{ fontSize: 12 }}>{draft.steps.filter((s) => s.trim()).length} steps</span></div>
-              {draft.steps.map((s, i) => (
-                <div key={i} className="row" style={{ padding: '8px 20px', gap: 10, alignItems: 'flex-start', borderBottom: '1px solid #f6f1e8' }}>
-                  <span className="num mono" style={{ width: 22, height: 22, borderRadius: 999, background: 'var(--soft)', color: 'var(--accent-ink)', fontSize: 11.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 7 }}>{i + 1}</span>
-                  <textarea aria-label={`step ${i + 1}`} className="textarea" rows={1} style={{ resize: 'vertical', minHeight: 36 }} value={s} placeholder="Boil the potatoes until soft." onChange={(e) => setStep(i, e.target.value)} />
-                  <div className="col" style={{ gap: 2 }}><button aria-label="move up" style={{ color: '#c0b7ab' }} onClick={() => moveStep(i, -1)}><Up size={12} /></button><button aria-label="move down" style={{ color: '#c0b7ab' }} onClick={() => moveStep(i, 1)}><Down size={12} /></button></div>
-                  <button aria-label="remove step" style={{ color: '#c0b7ab', marginTop: 8 }} onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, j) => j !== i) })}><X size={12} /></button>
-                </div>))}
-              <button className="row faint" style={{ padding: '12px 20px', fontSize: 13.5 }} onClick={() => setDraft({ ...draft, steps: [...draft.steps, ''] })}><Plus size={14} />Add a step</button>
-            </div>
+            <StepsCard title="Morning" hint="Hours ahead — soak, thaw, set the curd. Leave empty if there is nothing." placeholder="Soak the chana." steps={draft.morningSteps} onChange={(morningSteps) => setDraft((d) => ({ ...d, morningSteps }))} />
+            <StepsCard title="Evening" hint="The cooking itself." placeholder="Boil the potatoes until soft." steps={draft.steps} onChange={(steps) => setDraft((d) => ({ ...d, steps }))} />
 
             {error && <div className="banner red">{error}</div>}
             <div className="row" style={{ gap: 10 }}>

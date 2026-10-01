@@ -21,7 +21,7 @@ const week: Week = {
   ],
 };
 const today = (o: Partial<Today> = {}): Today => ({ date: '2026-09-07', people: 2, isEkadashi: false, breakfast: [], lunch: [], lunchFrom: null, dinner: [], dinnerCookedOn: '2026-09-07', cookAhead: null, ...o });
-const dish = (recipeId: string, title: string) => ({ recipeId, title, factor: 2, lines: [], steps: [] });
+const dish = (recipeId: string, title: string) => ({ recipeId, title, factor: 2, lines: [], morningSteps: [], steps: [] });
 
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>);
 
